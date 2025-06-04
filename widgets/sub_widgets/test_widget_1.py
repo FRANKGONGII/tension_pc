@@ -10,12 +10,13 @@ import pyqtgraph as pg
 
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
+    show_buttons = False
 
     def __init__(self):
         super().__init__()
         # 图表组件
         # 下面两个是控制开始测试和结束的显示
-        self.show_buttons = True
+        show_buttons = True
         self.if_start = True
         self.plot_widget = pg.PlotWidget()
 
@@ -38,9 +39,6 @@ class TestViewWidget_1(QWidget):
         self.setLayout(layout)
 
 
-    def toggle_buttons(self, show):
-        self.btn1.setVisible(show)
-        self.btn2.setVisible(show)
 
 
     def create_left_form(self):
@@ -50,32 +48,32 @@ class TestViewWidget_1(QWidget):
 
 
         # 👉 添加两个按钮
-        if self.show_buttons:
-            button_layout = QHBoxLayout()
-            self.btn1 = QPushButton("开始")
-            self.btn2 = QPushButton("结束")
-            self.btn1.setFont(font)
-            self.btn2.setFont(font)
-            self.btn1.setFixedHeight(32)
-            self.btn2.setFixedHeight(32)
-            self.btn1.setMinimumSize(120, 50)
-            self.btn2.setMinimumSize(120, 50)
-            button_layout.addWidget(self.btn1)
-            button_layout.addWidget(self.btn2)
-            self.btn1.setEnabled(self.if_start)
-            self.btn2.setEnabled(not self.if_start)
-            
-            # 绑定槽函数
-            self.btn1.clicked.connect(self.on_start_clicked)
-            self.btn2.clicked.connect(self.on_end_clicked)
 
-            # # 设置初始可见性
-            # self.btn1.setVisible(ToolBarWidget.get_show_buttons())
-            # self.btn2.setVisible(ToolBarWidget.get_show_buttons())
+        button_layout = QHBoxLayout()
+        self.btn1 = QPushButton("开始")
+        self.btn2 = QPushButton("结束")
+        self.btn1.setFont(font)
+        self.btn2.setFont(font)
+        self.btn1.setFixedHeight(32)
+        self.btn2.setFixedHeight(32)
+        self.btn1.setMinimumSize(120, 50)
+        self.btn2.setMinimumSize(120, 50)
+        button_layout.addWidget(self.btn1)
+        button_layout.addWidget(self.btn2)
+        self.btn1.setEnabled(self.if_start)
+        self.btn2.setEnabled(not self.if_start)
 
-            # # 注册监听器
-            # ToolBarWidget.visibility_changed.connect(self.setVisible)
-            # form_layout.addLayout(button_layout)
+        # 绑定槽函数
+        self.btn1.clicked.connect(self.on_start_clicked)
+        self.btn2.clicked.connect(self.on_end_clicked)
+
+        # 设置初始可见性
+        self.btn1.setVisible(False)
+        self.btn2.setVisible(False)
+
+        # # 注册监听器
+        # ToolBarWidget.visibility_changed.connect(self.setVisible)
+        form_layout.addLayout(button_layout)
 
         def add_label_input(label_text, input_widget=None):
             layout = QHBoxLayout()
@@ -117,6 +115,15 @@ class TestViewWidget_1(QWidget):
             add_label_input(label)
 
         return form_layout
+
+    def change_retest_visible(self):
+        if self.show_buttons:
+            self.btn1.setVisible(False)
+            self.btn2.setVisible(False)
+        else:
+            self.btn1.setVisible(True)
+            self.btn2.setVisible(True)
+            self.show_buttons = False
 
     def on_start_clicked(self):
         if self.btn1.isEnabled():

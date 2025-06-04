@@ -52,10 +52,13 @@ class MainWindow(QMainWindow):
 
         # self.footer = FooterWidget()
         self.toolbar = ToolBarWidget()
-
-
         self.toolbar.switch_chart_1.connect(self.switch_chart_1)
         self.toolbar.switch_chart_2.connect(self.switch_chart_2)
+        self.toolbar.change_visible.connect(self.change_visible)
+
+
+
+
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -86,4 +89,7 @@ class MainWindow(QMainWindow):
 
     def switch_chart_2(self):
         self.stack.setCurrentIndex(2)
+
+    def change_visible(self):
+        self.chart_widget1.change_retest_visible()
 

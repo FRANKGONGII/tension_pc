@@ -6,8 +6,8 @@ from component.buttons import MenuButton,ChartButton1,ChartButton2
 class ToolBarWidget(QToolBar):
     switch_chart_1 = pyqtSignal()  # 切换信号（供主界面使用）
     switch_chart_2 = pyqtSignal()
-    visibility_changed = pyqtSignal(bool) # 发出显示/隐藏信号（True 显示，False 隐藏）
-    _show_buttons = False
+    change_visible = pyqtSignal()
+
 
 
     def __init__(self):
@@ -21,7 +21,7 @@ class ToolBarWidget(QToolBar):
             ("重新测试", self.on_retest),
             ("编辑", self.on_edit),
             ("测试入库", self.on_save),
-            ("帮助", self.on_help),
+            ("查询历史", self.on_get_history),
             ("关于", self.on_about)
         ]
 
@@ -43,11 +43,9 @@ class ToolBarWidget(QToolBar):
             btn.clicked.connect(callback)
             self.addWidget(btn)
 
-    def on_retest(value:bool, self):
+    def on_retest(self):
         print("重新测试按钮点击")
-        # if self._show_buttons != value:
-        #     self._show_buttons = value
-        #     self.visibility_changed.emit(value)  # 通知界面刷新
+        self.change_visible.emit()
 
 
     def on_edit(self):
@@ -56,8 +54,8 @@ class ToolBarWidget(QToolBar):
     def on_save(self):
         print("入库按钮点击")
 
-    def on_help(self):
-        print("帮助按钮点击")
+    def on_get_history(self):
+        print("查询历史按钮点击")
 
     def on_about(self):
         print("关于按钮点击")
