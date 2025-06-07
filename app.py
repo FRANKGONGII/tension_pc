@@ -1,10 +1,12 @@
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
+    QApplication
 from PyQt5.QtCore import Qt
 from widgets.header import HeaderWidget
 from widgets.data_display import DataDisplayWidget
 from widgets.footer import FooterWidget
 from widgets.sub_widgets.test_widget_1 import TestViewWidget_1
 from widgets.sub_widgets.test_widget_2 import TestViewWidget_2
+from widgets.sub_widgets.search_history_widget import SearchHistoryWidget
 from widgets.toolbar import ToolBarWidget
 
 
@@ -21,8 +23,11 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """初始化主界面布局"""
+        screen =  QApplication.primaryScreen()
+        screen_width = screen.size().width()
+        dock_width = screen_width // 5  # 1/5 屏幕宽度
+
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
 
         # 主垂直布局
         main_layout = QVBoxLayout(central_widget)
@@ -55,15 +60,21 @@ class MainWindow(QMainWindow):
         self.toolbar.switch_chart_1.connect(self.switch_chart_1)
         self.toolbar.switch_chart_2.connect(self.switch_chart_2)
         self.toolbar.change_visible.connect(self.change_visible)
-
-
-
-
+        self.toolbar.history_visible.connect(self.history_visible)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
         main_layout.addWidget(self.data_display, alignment=Qt.AlignBottom)
-        # main_layout.addWidget(self.footer, alignment=Qt.AlignBottom)
+
+        self.setCentralWidget(central_widget)
+
+        # 创建查询侧边栏
+        self.dock = QDockWidget("查询栏", self)
+        self.dock.setWidget(SearchHistoryWidget())
+        self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+        self.dock.setMinimumWidth(dock_width)
+        self.dock.setMaximumWidth(dock_width)
+        self.dock.setVisible(False)
 
         # 最大化启动
         self.showMaximized()
@@ -92,4 +103,8 @@ class MainWindow(QMainWindow):
 
     def change_visible(self):
         self.chart_widget1.change_retest_visible()
+        self.chart_widget2.change_retest_visible()
+
+    def history_visible(self):
+        self.dock.setVisible(not self.dock.isVisible())
 

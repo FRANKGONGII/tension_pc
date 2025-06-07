@@ -1,12 +1,22 @@
+from enum import auto
+
 from PyQt5.QtWidgets import QToolBar, QPushButton
 from PyQt5.QtCore import Qt, pyqtSignal
 from component.buttons import MenuButton,ChartButton1,ChartButton2
 
 
 class ToolBarWidget(QToolBar):
+
+    from enum import Enum, auto
+    class TestStatus(Enum):
+        no_test= auto()  # 自动分配值(从1开始)
+        on_retest = auto()
+
     switch_chart_1 = pyqtSignal()  # 切换信号（供主界面使用）
     switch_chart_2 = pyqtSignal()
     change_visible = pyqtSignal()
+    history_visible = pyqtSignal()
+    status = TestStatus.no_test
 
 
 
@@ -39,6 +49,8 @@ class ToolBarWidget(QToolBar):
 
         for text, callback in buttons:
             btn = QPushButton(text)
+            if text == "测试入库" or text == "编辑":
+                btn.setEnabled(False)
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(callback)
             self.addWidget(btn)
@@ -56,6 +68,7 @@ class ToolBarWidget(QToolBar):
 
     def on_get_history(self):
         print("查询历史按钮点击")
+        self.history_visible.emit()
 
     def on_about(self):
         print("关于按钮点击")

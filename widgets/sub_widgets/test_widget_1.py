@@ -47,8 +47,7 @@ class TestViewWidget_1(QWidget):
         font.setPointSize(12)
 
 
-        # 👉 添加两个按钮
-
+        # 添加两个按钮
         button_layout = QHBoxLayout()
         self.btn1 = QPushButton("开始")
         self.btn2 = QPushButton("结束")
