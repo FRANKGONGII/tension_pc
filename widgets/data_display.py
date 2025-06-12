@@ -19,12 +19,6 @@ class DataDisplayWidget(QGroupBox):
         self.layout().setContentsMargins(15, 15, 15, 15)
 
         # 初始化三个数据标签
-        self.label_kg = QLabel("数据kg")
-        self.label_kg.setAlignment(Qt.AlignCenter)
-        self.label_kg.setMinimumWidth(180)
-        self.label_kg.setMinimumHeight(60)
-        self.layout().addWidget(self.label_kg)
-        self.data_labels.append(self.label_kg)
 
         self.label_mm = QLabel("数据mm")
         self.label_mm.setAlignment(Qt.AlignCenter)
@@ -32,6 +26,15 @@ class DataDisplayWidget(QGroupBox):
         self.label_mm.setMinimumHeight(60)
         self.layout().addWidget(self.label_mm)
         self.data_labels.append(self.label_mm)
+
+
+        self.label_kg = QLabel("数据kg")
+        self.label_kg.setAlignment(Qt.AlignCenter)
+        self.label_kg.setMinimumWidth(180)
+        self.label_kg.setMinimumHeight(60)
+        self.layout().addWidget(self.label_kg)
+        self.data_labels.append(self.label_kg)
+
 
         self.label_N = QLabel("数据N")
         self.label_N.setAlignment(Qt.AlignCenter)
@@ -46,6 +49,7 @@ class DataDisplayWidget(QGroupBox):
 
     def update_data(self, values):
         """更新数据显示"""
-        self.label_mm.setText(f"{values[0]:.2f}")
-        self.label_kg.setText(f"{values[1]:.2f}")
-        self.label_N.setText(f"{values[1] * 9.8:.2f}")
+        # TODO：mm的第一个参数减一下初始位置
+        self.label_mm.setText(f"0 | {values[1]:.2f}")
+        self.label_kg.setText(f"{values[0]:.2f}")
+        self.label_N.setText(f"{values[0] * 9.8:.2f}")

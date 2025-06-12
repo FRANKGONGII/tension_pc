@@ -1,3 +1,5 @@
+import ast
+
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QComboBox, QHBoxLayout, QVBoxLayout,
     QGridLayout, QPushButton, QMessageBox
@@ -5,12 +7,22 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 import pyqtgraph as pg
+from pyqtgraph import TextItem
 
+from utils.serial_reader import SerialReader
 
 
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
+    received_data_changed = pyqtSignal(object)
+
     show_buttons = False
+    _show_dot_duration = 10
+    _cnt_receive_dot = 0
+    _record_dot_x = []
+    _record_dot_y = []
+    _label_y = []
+    _label_x = []
 
     def __init__(self):
         super().__init__()
@@ -24,7 +36,9 @@ class TestViewWidget_1(QWidget):
         main_layout = QHBoxLayout()
         left_panel = self.create_left_form()
         # 创建图表
-        self.create_chart()
+        x = [0, 1, 2, 3, 4, 5]
+        y = [0, 10, 5, 20, 15, 25]
+        self.create_chart(x, y)
         right_panel = self.plot_widget
 
         main_layout.addLayout(left_panel, 2)
@@ -69,10 +83,14 @@ class TestViewWidget_1(QWidget):
         # 设置初始可见性
         self.btn1.setVisible(False)
         self.btn2.setVisible(False)
-
-        # # 注册监听器
-        # ToolBarWidget.visibility_changed.connect(self.setVisible)
         form_layout.addLayout(button_layout)
+
+        # 初始化串口监听
+        self.listening = True  # 状态变量：是否正在监听串口
+        self.serial_reader = SerialReader(port='COM1', baudrate=9600)
+        self.serial_reader.start()
+        self.serial_reader.data_received.connect(self.handle_data)
+
 
         def add_label_input(label_text, input_widget=None):
             layout = QHBoxLayout()
@@ -137,22 +155,60 @@ class TestViewWidget_1(QWidget):
             # 逻辑处理
             print("结束按钮被点击")
             self.btn2.setEnabled(False)
+            self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
 
 
-    def create_chart(self):
+    def create_chart(self, x: list, y: list):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground('w')
         self.plot_widget.setTitle("载荷-位移性能曲线", color='purple', size='14pt')
-        self.plot_widget.setLabel('left', '载荷 (N)', **{'color': '#000', 'font-size': '12pt'})
-        self.plot_widget.setLabel('bottom', '位移 (mm)', **{'color': '#000', 'font-size': '12pt'})
+        self.plot_widget.setLabel('left', '位移 (mm)', **{'color': '#000', 'font-size': '12pt'})
+        self.plot_widget.setLabel('bottom', '载荷 (N)', **{'color': '#000', 'font-size': '12pt'})
         self.plot_widget.showGrid(x=True, y=True)
 
-        # 示例数据
-        x = [0, 1, 2, 3, 4, 5]
-        y = [0, 10, 5, 20, 15, 25]
-        self.plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), symbol='o')
+        # 把 curve 存起来，以便后续更新
+        self.curve = self.plot_widget.plot(
+            x, y,
+            pen=None,
+            symbol='o',
+            symbolSize=5,
+            symbolBrush='b'
+        )
+        # 设置移动获取坐标
+        self.plot_widget.getViewBox().invertY(True)
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
+        self.plot_widget.setXRange(40, 80)
+        self.plot_widget.setYRange(100, 250)
+
+
+    def update_chart(self, x: list, y: list):
+        if hasattr(self, 'curve'):
+            self.curve.setData(x, y)
+
+    def highlight_plot(self, x: float, y: float):
+        # 加一个红色的大点覆盖在原曲线上，曲线不变
+        highlight = pg.ScatterPlotItem(
+            [x], [y],
+            symbol='o',
+            size=14,
+            brush='r',
+            pen='k'
+        )
+        self.plot_widget.addItem(highlight)
+
+        # 添加坐标标签（偏移一点避免遮挡）
+        def find_non_overlapping_pos(x, y):
+            if y < self._record_dot_y[-1]:
+                return x - 2.0, y - 2.0
+            else:
+                return x + 2.0, y - 2.0
+
+
+        label = TextItem(f"({x:.2f}, {y:.2f})", anchor=(0.5, 0), color='black')
+        new_x, new_y = find_non_overlapping_pos(x, y)
+        label.setPos(new_x, new_y)
+        self.plot_widget.addItem(label)
 
     def on_mouse_moved(self, evt):
         # TODO: 搞清楚下面那三个是要显示什么
@@ -160,8 +216,8 @@ class TestViewWidget_1(QWidget):
         mouse_point = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
         x = mouse_point.x()
         y = mouse_point.y()
-        self.mouse_data_changed.emit([x, y])  # 发射信号
-
+        if self.btn1.isEnabled():
+            self.mouse_data_changed.emit([x, y])  # 发射信号
 
     def create_bottom_grid(self):
         grid_layout = QGridLayout()
@@ -177,3 +233,25 @@ class TestViewWidget_1(QWidget):
             grid_layout.addWidget(label, 0, col)
 
         return grid_layout
+
+
+    def handle_data(self, data):
+        # TODO：更新图表数据
+        x, y = ast.literal_eval(data)
+        self._cnt_receive_dot += 1
+        self.received_data_changed.emit([x, y])
+        self.update_chart(self._record_dot_x, self._record_dot_y)
+        # TODO：按照位移y坐标间隔一定标记一个点
+        if self._cnt_receive_dot % self._show_dot_duration == 0:
+            self.highlight_plot(x, y)
+            # 保存图片
+            pixmap = self.plot_widget.grab()
+            pixmap.save("./resources/png.png")
+
+        self._record_dot_x.append(x)
+        self._record_dot_y.append(y)
+
+
+
+
+

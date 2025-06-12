@@ -137,6 +137,7 @@ class TestViewWidget_2(QWidget):
             # 逻辑处理
             print("结束按钮被点击")
             self.btn2.setEnabled(False)
+            self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
 
 

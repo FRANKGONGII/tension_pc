@@ -1,3 +1,5 @@
+import os
+
 from PyQt5.QtWidgets import QPushButton, QMenu, QAction
 from PyQt5.QtCore import Qt,pyqtSignal
 
@@ -84,5 +86,9 @@ class MenuButton(QPushButton):
     def _on_menu_clicked(self, text):
         """菜单项点击事件处理"""
         print(f"菜单项被点击: {text}")
+        if text == "打印(M)":
+            print(os.getcwd())
+            from utils.print_doc import print_doc
+            print_doc()
         # 这里可以发射信号或调用回调函数
         # 实际应用中可以将此信号连接到主窗口的槽函数
