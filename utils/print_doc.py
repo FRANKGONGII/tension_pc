@@ -14,8 +14,8 @@ def print_doc():
     doc = Document()
 
     # 添加公司名和标题（居中）
-    doc.add_paragraph("江苏慧通成套管道设备有限公司", style='Title').alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("JiangShu Huitong Nest Pipeline Equipment Co.Ltd").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("江苏慧通管道设备有限公司", style='Title').alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("JiangShu Huitong Pipeline Equipment Co.Ltd").alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("恒力吊架性能试验记录", style='Heading 1').alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("Constant Hanger Performance Test Record").alignment = WD_ALIGN_PARAGRAPH.CENTER
 

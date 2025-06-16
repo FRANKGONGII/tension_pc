@@ -8,7 +8,7 @@ from widgets.sub_widgets.test_widget_1 import TestViewWidget_1
 from widgets.sub_widgets.test_widget_2 import TestViewWidget_2
 from widgets.sub_widgets.search_history_widget import SearchHistoryWidget
 from widgets.toolbar import ToolBarWidget
-
+from utils.data_manager import DataManager
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
         self.toolbar.switch_chart_2.connect(self.switch_chart_2)
         self.toolbar.change_visible.connect(self.change_visible)
         self.toolbar.history_visible.connect(self.history_visible)
+        self.toolbar.save_btn.clicked.connect(self.save_data)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -110,4 +111,10 @@ class MainWindow(QMainWindow):
 
     def history_visible(self):
         self.dock.setVisible(not self.dock.isVisible())
+
+    def save_data(self):
+        data = self.chart_widget1.get_all_data()
+        print("get data", data)
+        DataManager.save_data(data[0])
+
 

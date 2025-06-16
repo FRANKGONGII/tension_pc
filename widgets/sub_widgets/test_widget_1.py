@@ -1,4 +1,5 @@
 import ast
+from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QComboBox, QHBoxLayout, QVBoxLayout,
@@ -10,6 +11,8 @@ import pyqtgraph as pg
 from pyqtgraph import TextItem
 
 from utils.serial_reader import SerialReader
+from utils.data_manager import DataManager
+from PO.input_data import inputManager
 
 
 class TestViewWidget_1(QWidget):
@@ -23,6 +26,11 @@ class TestViewWidget_1(QWidget):
     _record_dot_y = []
     _label_y = []
     _label_x = []
+    # 记录表单控件
+    inputs = {}
+    input_manager = inputManager()
+    # 数据库
+    DataManager = DataManager()
 
     def __init__(self):
         super().__init__()
@@ -107,10 +115,20 @@ class TestViewWidget_1(QWidget):
             layout.addWidget(label)
             layout.addWidget(input_widget)
             form_layout.addLayout(layout)
+            self.inputs[label_text.strip("：")] = input_widget
+            return input_widget
 
         # 分组添加内容
-        add_label_input("试验时间：")
-        add_label_input("用户：", QComboBox())
+        time_input = add_label_input("试验时间：")
+        now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time_input.setText(now_time)
+        inputManager.set_value(self.input_manager, "试验时间", now_time)
+
+        user = add_label_input("用户：", QComboBox())
+        user.addItems(["管理员1", "管理员2"])
+        user.setCurrentIndex(0)
+        inputManager.set_value(self.input_manager, "用户", "管理员1")
+
         add_label_input("吊点代号：", QComboBox())
 
         add_label_input("出厂编号：")
@@ -130,8 +148,24 @@ class TestViewWidget_1(QWidget):
             "恒定度", "锁定位置", "测试结果"
         ]:
             add_label_input(label)
+        self.bind_signals()
 
         return form_layout
+
+    # 记录表单内容
+    def bind_signals(self):
+        for key, widget in self.inputs.items():
+            if isinstance(widget, QLineEdit):
+                widget.textChanged.connect(lambda val, k=key: self.on_input_changed(k, val))
+            elif isinstance(widget, QComboBox):
+                widget.currentTextChanged.connect(lambda val, k=key: self.on_input_changed(k, val))
+
+    def on_input_changed(self, key, value):
+        print(f"{key} changed: {value}")
+        self.input_manager.set_value(key, value)
+
+    def get_all_data(self):
+        return self.input_manager, self._record_dot_x, self._record_dot_y
 
     def change_retest_visible(self):
         if self.show_buttons:
@@ -211,7 +245,6 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.addItem(label)
 
     def on_mouse_moved(self, evt):
-        # TODO: 搞清楚下面那三个是要显示什么
         pos = evt
         mouse_point = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
         x = mouse_point.x()
@@ -236,7 +269,6 @@ class TestViewWidget_1(QWidget):
 
 
     def handle_data(self, data):
-        # TODO：更新图表数据
         x, y = ast.literal_eval(data)
         self._cnt_receive_dot += 1
         self.received_data_changed.emit([x, y])
