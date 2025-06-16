@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
     def save_data(self):
         data = self.chart_widget1.get_all_data()
         print("get data", data)
-        DataManager.save_data(data[0])
+        last_id = DataManager.save_detail(data[0])
+        DataManager.save_test_data(last_id, data[1], data[2])
 
 

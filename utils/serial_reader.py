@@ -61,3 +61,4 @@ class SerialReader(QObject):
             data = f"({x}, {y})"
             self.data_received.emit(data)
             time.sleep(0.2)
+        self._running = False

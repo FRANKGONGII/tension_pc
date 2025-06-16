@@ -38,6 +38,7 @@ class TestViewWidget_1(QWidget):
         # 下面两个是控制开始测试和结束的显示
         show_buttons = True
         self.if_start = True
+        self.restart = False
         self.plot_widget = pg.PlotWidget()
 
         # 整体布局：上方左右 + 下方表格
@@ -96,7 +97,6 @@ class TestViewWidget_1(QWidget):
         # 初始化串口监听
         self.listening = True  # 状态变量：是否正在监听串口
         self.serial_reader = SerialReader(port='COM1', baudrate=9600)
-        self.serial_reader.start()
         self.serial_reader.data_received.connect(self.handle_data)
 
 
@@ -119,10 +119,7 @@ class TestViewWidget_1(QWidget):
             return input_widget
 
         # 分组添加内容
-        time_input = add_label_input("试验时间：")
-        now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        time_input.setText(now_time)
-        inputManager.set_value(self.input_manager, "试验时间", now_time)
+        self.time_input = add_label_input("试验时间：")
 
         user = add_label_input("用户：", QComboBox())
         user.addItems(["管理员1", "管理员2"])
@@ -134,7 +131,12 @@ class TestViewWidget_1(QWidget):
         add_label_input("出厂编号：")
         add_label_input("型号规格：")
         add_label_input("工作荷载(N)：")
-        add_label_input("位移方向：", QComboBox())
+
+        direction = add_label_input("位移方向：", QComboBox())
+        direction.addItems(["上", "下", "左", "右"])
+        direction.setCurrentIndex(0)
+        inputManager.set_value(self.input_manager, "位移方向", "上")
+
         add_label_input("总位移(mm)：")
         add_label_input("工作位移：")
 
@@ -182,10 +184,28 @@ class TestViewWidget_1(QWidget):
             print("开始按钮被点击")
             self.btn1.setEnabled(False)
             self.btn2.setEnabled(True)
+            now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.time_input.setText(now_time)
+            inputManager.set_value(self.input_manager, "试验时间", now_time)
+            # 清空原先数据
+            self._cnt_receive_dot = 0
+            self._record_dot_x = []
+            self._record_dot_y = []
+            self.label_y = []
+            self._label_x = []
+            if self.restart == True:
+                self.plot_widget.clear()
+                self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+                self.restart = False
+
+            # 开始生成数据
+            self.serial_reader.start()
+
 
 
     def on_end_clicked(self):
         if self.btn2.isEnabled():
+            self.restart = True
             # 逻辑处理
             print("结束按钮被点击")
             self.btn2.setEnabled(False)
@@ -219,6 +239,7 @@ class TestViewWidget_1(QWidget):
     def update_chart(self, x: list, y: list):
         if hasattr(self, 'curve'):
             self.curve.setData(x, y)
+
 
     def highlight_plot(self, x: float, y: float):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
@@ -270,6 +291,7 @@ class TestViewWidget_1(QWidget):
 
     def handle_data(self, data):
         x, y = ast.literal_eval(data)
+        print("get data:", x, y, self._record_dot_x, self._record_dot_y)
         self._cnt_receive_dot += 1
         self.received_data_changed.emit([x, y])
         self.update_chart(self._record_dot_x, self._record_dot_y)

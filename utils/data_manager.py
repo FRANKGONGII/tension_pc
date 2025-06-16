@@ -50,7 +50,7 @@ class DataManager:
         conn.close()
 
     @staticmethod
-    def save_data(data: inputManager):
+    def save_detail(data: inputManager):
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
         print("first get and save", data)
@@ -88,5 +88,80 @@ class DataManager:
 
         conn.commit()
         conn.close()
+        return cursor.lastrowid
+
+    @staticmethod
+    def save_test_data(form_id: int, x_list: [], y_list: []):
+        if len(x_list) != len(y_list):
+            raise ValueError("x_list 和 y_list 长度不一致")
+        print(form_id)
+
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        data_tuples = [(form_id, x, y) for x, y in zip(x_list, y_list)]
+        cursor.executemany(
+            '''
+            INSERT INTO test_data (form_id, displacement, force)
+            VALUES (?, ?, ?)
+            ''',
+            data_tuples
+        )
+        conn.commit()
+
+    @staticmethod
+    def queryByYear(year):
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        # 构建SQL(通过年份查找)
+        sql = f'''
+               SELECT *
+               FROM test_detail
+               WHERE test_time LIKE ?
+           '''
+        params = [f"{year}%"]
+        cursor.execute(sql, params)
+        results = cursor.fetchall()
+        conn.close()
+        return results
+
+    @staticmethod
+    def queryByYearAndUser(year, user):
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        # 构建SQL(通过年份查找)
+        sql = f'''
+               SELECT *
+               FROM test_detail
+               WHERE test_time LIKE ?
+               AND user LIKE ?
+           '''
+        params = [f"{year}%", f"{user}%"]
+        cursor.execute(sql, params)
+        results = cursor.fetchall()
+        conn.close()
+        return results
+
+    @staticmethod
+    def queryByYearAndFactoryNum(year, number):
+        conn = sqlite3.connect("form_data.db")
+        print(number == None)
+        cursor = conn.cursor()
+        # 构建SQL(通过年份查找)
+        sql = f'''
+               SELECT *
+               FROM test_detail
+               WHERE test_time LIKE ?
+               AND 出厂编号 LIKE ?
+           '''
+        params = [f"{year}%", f"{number}%"]
+        cursor.execute(sql, params)
+        results = cursor.fetchall()
+        conn.close()
+        return results
+
+
+
+
+
 
 
