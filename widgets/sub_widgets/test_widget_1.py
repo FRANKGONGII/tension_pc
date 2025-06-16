@@ -13,6 +13,7 @@ from pyqtgraph import TextItem
 from utils.serial_reader import SerialReader
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
+from pyqtgraph import InfiniteLine
 
 
 class TestViewWidget_1(QWidget):
@@ -45,9 +46,7 @@ class TestViewWidget_1(QWidget):
         main_layout = QHBoxLayout()
         left_panel = self.create_left_form()
         # 创建图表
-        x = [0, 1, 2, 3, 4, 5]
-        y = [0, 10, 5, 20, 15, 25]
-        self.create_chart(x, y)
+        self.create_chart([], [])
         right_panel = self.plot_widget
 
         main_layout.addLayout(left_panel, 2)
@@ -130,7 +129,7 @@ class TestViewWidget_1(QWidget):
 
         add_label_input("出厂编号：")
         add_label_input("型号规格：")
-        add_label_input("工作荷载(N)：")
+        add_label_input("工作载荷(N)：")
 
         direction = add_label_input("位移方向：", QComboBox())
         direction.addItems(["上", "下", "左", "右"])
@@ -164,7 +163,7 @@ class TestViewWidget_1(QWidget):
 
     def on_input_changed(self, key, value):
         print(f"{key} changed: {value}")
-        self.input_manager.set_value(key, value)
+        self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
         return self.input_manager, self._record_dot_x, self._record_dot_y
@@ -197,7 +196,13 @@ class TestViewWidget_1(QWidget):
                 self.plot_widget.clear()
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
                 self.restart = False
-
+            # 插入边界线
+            base = int(self.input_manager.get_value("工作载荷"))
+            print("载荷", base)
+            line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
+            line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+            self.plot_widget.addItem(line1)
+            self.plot_widget.addItem(line2)
             # 开始生成数据
             self.serial_reader.start()
 
@@ -211,6 +216,7 @@ class TestViewWidget_1(QWidget):
             self.btn2.setEnabled(False)
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
+            self.serial_reader.stop()
 
 
     def create_chart(self, x: list, y: list):
