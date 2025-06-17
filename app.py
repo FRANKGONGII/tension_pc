@@ -1,6 +1,9 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
-    QApplication
+    QApplication, QDialog
 from PyQt5.QtCore import Qt
+from boto import connect_sns
+
+from widgets.dialog.ScaleAdjustDialog import ScaleAdjustDialog
 from widgets.header import HeaderWidget
 from widgets.data_display import DataDisplayWidget
 from widgets.footer import FooterWidget
@@ -65,6 +68,7 @@ class MainWindow(QMainWindow):
         self.toolbar.change_visible.connect(self.change_visible)
         self.toolbar.history_visible.connect(self.history_visible)
         self.toolbar.save_btn.clicked.connect(self.save_data)
+        self.toolbar.edit_btn.clicked.connect(self.edit_data)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -117,5 +121,46 @@ class MainWindow(QMainWindow):
         print("get data", data)
         last_id = DataManager.save_detail(data[0])
         DataManager.save_test_data(last_id, data[1], data[2])
+
+    def edit_data(self):
+        x = self.chart_widget1._record_dot_x
+        self.on_adjust_scale_clicked(points=x)
+
+    def on_adjust_scale_clicked(self, points: []):
+        # 示例数据（你应从实际数据获取）
+        min_val = min(points)
+        max_val = max(points)
+        constancy = self.calculate_constancy(points)  # 自定义的恒定度计算
+
+        # 弹出对话框
+        dialog = ScaleAdjustDialog(self)
+        dialog.set_data_stats(min_val, max_val, constancy)
+
+        self.try_scaling(points, constancy)
+
+        if dialog.exec_() == QDialog.Accepted:
+            ratio = dialog.get_scale_ratio()
+            if ratio:
+                scaled_points = self.apply_scaling(points, ratio, constancy)
+                print("缩放后数据：", scaled_points)
+
+    def try_scaling(self, points, constancy):
+        maxP = max(points)
+        minP = min(points)
+        mid = (maxP + minP) / 2
+        for i in range(0, len(points)):
+            if (points[i] < mid):
+                points[i] *= 1 + (constancy - 5) / 100
+            else:
+                points[i] *= 1 - (constancy - 5) / 100
+        print("scaling", points, self.calculate_constancy(points))
+
+
+    def calculate_constancy(self, points):
+        maxP = max(points)
+        minP = min(points)
+        return (maxP - minP) * 100 / (maxP + minP)
+
+
 
 

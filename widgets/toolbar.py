@@ -16,6 +16,7 @@ class ToolBarWidget(QToolBar):
     switch_chart_2 = pyqtSignal()
     change_visible = pyqtSignal()
     history_visible = pyqtSignal()
+    edit_visible = pyqtSignal()
 
     status = TestStatus.no_test
 
@@ -30,7 +31,6 @@ class ToolBarWidget(QToolBar):
         # 创建功能按钮
         buttons = [
             ("重新测试", self.on_retest),
-            ("编辑", self.on_edit),
             ("查询历史", self.on_get_history),
             ("关于", self.on_about)
         ]
@@ -49,6 +49,9 @@ class ToolBarWidget(QToolBar):
         self.save_btn = QPushButton("测试入库")
         self.addWidget(self.save_btn)
 
+        self.edit_btn = QPushButton("数据编辑")
+        self.addWidget(self.edit_btn)
+
 
         for text, callback in buttons:
             btn = QPushButton(text)
@@ -63,6 +66,8 @@ class ToolBarWidget(QToolBar):
 
     def on_edit(self):
         print("编辑按钮点击")
+        self.edit_visible.emit()
+
 
     def on_save(self):
         print("入库按钮点击")
