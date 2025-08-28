@@ -131,29 +131,23 @@ class MainWindow(QMainWindow):
         min_val = min(points)
         max_val = max(points)
         constancy = self.calculate_constancy(points)  # 自定义的恒定度计算
-
         # 弹出对话框
         dialog = ScaleAdjustDialog(self)
         dialog.set_data_stats(min_val, max_val, constancy)
 
-        self.try_scaling(points, constancy)
-
         if dialog.exec_() == QDialog.Accepted:
-            ratio = dialog.get_scale_ratio()
-            if ratio:
-                scaled_points = self.apply_scaling(points, ratio, constancy)
-                print("缩放后数据：", scaled_points)
+            new_x = self.try_scaling(points, constancy)
 
+    # TODO: 想一个好一点的方法处理
     def try_scaling(self, points, constancy):
         maxP = max(points)
         minP = min(points)
         mid = (maxP + minP) / 2
-        for i in range(0, len(points)):
-            if (points[i] < mid):
-                points[i] *= 1 + (constancy - 5) / 100
-            else:
-                points[i] *= 1 - (constancy - 5) / 100
-        print("scaling", points, self.calculate_constancy(points))
+
+        if constancy < 7:
+            return
+        self.chart_widget1.adjust_center = mid
+        self.chart_widget1.adjust_number = (constancy - 7) / 100
 
 
     def calculate_constancy(self, points):

@@ -40,8 +40,7 @@ class ScaleAdjustDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(self.label_current_range)
         layout.addWidget(self.label_current_constancy)
-        layout.addWidget(self.label_current_constancy)
-        layout.addLayout(form_layout)
+        layout.addWidget(self.label_target_constancy)
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
@@ -56,8 +55,4 @@ class ScaleAdjustDialog(QDialog):
         self.label_target_constancy.setText("目标恒定度：6%")
 
 
-    def get_scale_ratio(self):
-        try:
-            return float(self.input_ratio.text())
-        except ValueError:
-            return None
+

@@ -25,13 +25,15 @@ class TestViewWidget_1(QWidget):
     _cnt_receive_dot = 0
     _record_dot_x = []
     _record_dot_y = []
-    _label_y = []
-    _label_x = []
     # 记录表单控件
     inputs = {}
     input_manager = inputManager()
     # 数据库
     DataManager = DataManager()
+    # 调整系数
+    adjust_number = 1
+    # 调整中心值
+    adjust_center = -1
 
     def __init__(self):
         super().__init__()
@@ -190,8 +192,6 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot = 0
             self._record_dot_x = []
             self._record_dot_y = []
-            self.label_y = []
-            self._label_x = []
             if self.restart == True:
                 self.plot_widget.clear()
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
@@ -247,6 +247,31 @@ class TestViewWidget_1(QWidget):
             self.curve.setData(x, y)
 
 
+    def rewrite_chart(self, x: [], y: []):
+        self.plot_widget.clear()
+        self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+        self._record_dot_y = y
+        self._record_dot_x = x
+        self._cnt_receive_dot = 0
+
+        # 插入边界线
+        base = int(self.input_manager.get_value("工作载荷"))
+        print("载荷", base)
+        line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
+        line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+        self.plot_widget.addItem(line1)
+        self.plot_widget.addItem(line2)
+
+        self.update_chart(self._record_dot_x, self._record_dot_y)
+        for i in range(0, len(x)):
+            self._cnt_receive_dot += 1
+            if self._cnt_receive_dot % self._show_dot_duration == 0:
+                self.highlight_plot(x[i], y[i])
+                # 保存图片
+                pixmap = self.plot_widget.grab()
+                pixmap.save("./resources/png.png")
+
+
     def highlight_plot(self, x: float, y: float):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
         highlight = pg.ScatterPlotItem(
@@ -271,6 +296,7 @@ class TestViewWidget_1(QWidget):
         label.setPos(new_x, new_y)
         self.plot_widget.addItem(label)
 
+
     def on_mouse_moved(self, evt):
         pos = evt
         mouse_point = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
@@ -278,6 +304,7 @@ class TestViewWidget_1(QWidget):
         y = mouse_point.y()
         if self.btn1.isEnabled():
             self.mouse_data_changed.emit([x, y])  # 发射信号
+
 
     def create_bottom_grid(self):
         grid_layout = QGridLayout()
@@ -297,6 +324,14 @@ class TestViewWidget_1(QWidget):
 
     def handle_data(self, data):
         x, y = ast.literal_eval(data)
+        print(self.adjust_center, self.adjust_number)
+        if self.adjust_center != -1:
+            print("will adjust number")
+            if x < self.adjust_center:
+                x = x * (1 + self.adjust_number)
+            else:
+                x = x * (1 - self.adjust_number)
+
         print("get data:", x, y, self._record_dot_x, self._record_dot_y)
         self._cnt_receive_dot += 1
         self.received_data_changed.emit([x, y])
