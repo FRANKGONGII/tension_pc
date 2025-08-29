@@ -14,6 +14,7 @@ from utils.serial_reader import SerialReader
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
+from utils.calculate import *
 
 
 class TestViewWidget_1(QWidget):
@@ -61,6 +62,9 @@ class TestViewWidget_1(QWidget):
         layout.addLayout(bottom_panel)
 
         self.setLayout(layout)
+        
+        # TODO:补充设计位移的获取逻辑
+        self.design_displacement = 10  # 设计位移，单位mm
 
 
 
@@ -116,39 +120,52 @@ class TestViewWidget_1(QWidget):
             layout.addWidget(label)
             layout.addWidget(input_widget)
             form_layout.addLayout(layout)
-            self.inputs[label_text.strip("：")] = input_widget
+            self.inputs[label_text.strip("").strip('：').split('(')[0]] = input_widget
             return input_widget
 
         # 分组添加内容
         self.time_input = add_label_input("试验时间：")
 
         user = add_label_input("用户：", QComboBox())
+        # TODO:这些都要改成从配置文件读取
         user.addItems(["管理员1", "管理员2"])
         user.setCurrentIndex(0)
+        user.setEditable(True)
         inputManager.set_value(self.input_manager, "用户", "管理员1")
 
-        add_label_input("吊点代号：", QComboBox())
-
+        lang_points = add_label_input("吊点代号：", QComboBox())
+        lang_points.addItems([f"{i:02d}" for i in range(1, 21)])
+        lang_points.setCurrentIndex(0)
+        inputManager.set_value(self.input_manager, "吊点代号", "01")
+        
         add_label_input("出厂编号：")
         add_label_input("型号规格：")
-        add_label_input("工作载荷(N)：")
+        add_label_input("工作载荷(N): ")
 
         direction = add_label_input("位移方向：", QComboBox())
         direction.addItems(["上", "下", "左", "右"])
         direction.setCurrentIndex(0)
         inputManager.set_value(self.input_manager, "位移方向", "上")
 
-        add_label_input("总位移(mm)：")
+        add_label_input("总位移(mm): ")
         add_label_input("工作位移：")
 
-        add_label_input("操作员：", QComboBox())
-        add_label_input("检验员：", QComboBox())
+        operator = add_label_input("操作员：", QComboBox())
+        operator.addItems(["刘云佳", "张三", "李四"])
+        operator.setCurrentIndex(0)
+        operator.setEditable(True)
+        inputManager.set_value(self.input_manager, "操作员", "刘云佳")
+        checker = add_label_input("检验员：", QComboBox())
+        checker.addItems(["陈广春", "王五", "赵六"])
+        checker.setCurrentIndex(0)
+        checker.setEditable(True)
+        inputManager.set_value(self.input_manager, "检验员", "陈广春")
 
         # 状态项
         for label in [
             "位移起始点值", "位移终止点值", "实测位移值",
             "超载试验值(N)", "起始 - 终止时间", "超载试验保持时间",
-            "恒定度", "锁定位置", "测试结果"
+            "恒定度", "锁定位置", "载荷偏差度", "测试结果"
         ]:
             add_label_input(label)
         self.bind_signals()
@@ -205,9 +222,10 @@ class TestViewWidget_1(QWidget):
             self.plot_widget.addItem(line2)
             # 开始生成数据
             self.serial_reader.start()
+            
 
 
-
+    # 点击结束要计算一些项目，并忽略后续数据
     def on_end_clicked(self):
         if self.btn2.isEnabled():
             self.restart = True
@@ -217,14 +235,37 @@ class TestViewWidget_1(QWidget):
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
-
+            # 计算一些值
+            # 写入恒定度
+            constancy = calculate_constancy(self._record_dot_x)
+            self.inputs["恒定度"].setText(f"{constancy:.4f}%")
+            # TODO:
+            # 确认工作位移如何计算？
+            # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
+            # 正确应该是从工作位移的值出发
+            total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
+            self.inputs["总位移"].setText(f"{total_displacement:.2f}")
+            # 写入位移终止点值
+            end_value = max(self._record_dot_y)
+            self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
+            # 写入位移起始点值
+            start_value = self._record_dot_y[0]
+            self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
+            # 写入实测位移值
+            real_value = end_value - start_value
+            self.inputs["实测位移值"].setText(f"{real_value:.2f}")
+            # 写入载荷偏差度
+            base = self.input_manager.get_value("工作载荷")
+            if base != 0:
+                load_values = calculate_load_deviation(float(base), self._record_dot_x)
+                self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
 
     def create_chart(self, x: list, y: list):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground('w')
-        self.plot_widget.setTitle("载荷-位移性能曲线", color='purple', size='14pt')
-        self.plot_widget.setLabel('left', '位移 (mm)', **{'color': '#000', 'font-size': '12pt'})
-        self.plot_widget.setLabel('bottom', '载荷 (N)', **{'color': '#000', 'font-size': '12pt'})
+        self.plot_widget.setTitle("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', size='14pt')
+        self.plot_widget.setLabel('left', '位移Travel(mm)', **{'color': '#000', 'font-size': '12pt'})
+        self.plot_widget.setLabel('top', '载荷Load(N)', **{'color': '#000', 'font-size': '12pt'})
         self.plot_widget.showGrid(x=True, y=True)
 
         # 把 curve 存起来，以便后续更新
@@ -291,7 +332,7 @@ class TestViewWidget_1(QWidget):
                 return x + 2.0, y - 2.0
 
 
-        label = TextItem(f"({x:.2f}, {y:.2f})", anchor=(0.5, 0), color='black')
+        label = TextItem(f"{x:.3f}", anchor=(0.5, 0), color='black')
         new_x, new_y = find_non_overlapping_pos(x, y)
         label.setPos(new_x, new_y)
         self.plot_widget.addItem(label)

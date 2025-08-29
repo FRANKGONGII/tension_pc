@@ -2,6 +2,17 @@ import sqlite3
 from PO.input_data import inputManager
 
 class DataManager:
+    @staticmethod
+    def queryTestDataByFormId(form_id):
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        sql = '''SELECT displacement, force FROM test_data WHERE form_id = ?'''
+        cursor.execute(sql, (form_id,))
+        results = cursor.fetchall()
+        conn.close()
+        x_list = [row[0] for row in results]
+        y_list = [row[1] for row in results]
+        return x_list, y_list
     def __init__(self):
         self.init_db()
 
@@ -31,6 +42,7 @@ class DataManager:
                 保持时间 TEXT,
                 恒定度 TEXT,
                 锁定位置 TEXT,
+                载荷偏差度 TEXT,
                 测试结果 TEXT
             )
         ''')
@@ -50,6 +62,16 @@ class DataManager:
         conn.close()
 
     @staticmethod
+    def queryById(data_id):
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        sql = '''SELECT * FROM test_detail WHERE id = ?'''
+        cursor.execute(sql, (data_id,))
+        result = cursor.fetchone()
+        conn.close()
+        return result
+    
+    @staticmethod
     def save_detail(data: inputManager):
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
@@ -61,8 +83,8 @@ class DataManager:
                 总位移, 工作位移, 操作员, 检验员,
                 位移起始点值, 位移终止点值, 实测位移值,
                 超载试验值, 起止时间, 保持时间,
-                恒定度, 锁定位置, 测试结果
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                恒定度, 锁定位置, 载荷偏差度, 测试结果
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data.get_value("test_time"),
             data.get_value("user"),
@@ -74,7 +96,7 @@ class DataManager:
             data.get_value("总位移"),
             data.get_value("工作位移"),
             data.get_value("操作员"),
-            data.get_value("校验员"),
+            data.get_value("检验员"),
             data.get_value("位移起始点值"),
             data.get_value("位移终止点值"),
             data.get_value("实测位移值"),
@@ -83,6 +105,7 @@ class DataManager:
             data.get_value("超载试验保持时间"),
             data.get_value("恒定度"),
             data.get_value("锁定位置"),
+            data.get_value("载荷偏差度"),
             data.get_value("测试结果")
         ))
 
@@ -91,7 +114,7 @@ class DataManager:
         return cursor.lastrowid
 
     @staticmethod
-    def save_test_data(form_id: int, x_list: [], y_list: []):
+    def save_test_data(form_id: int, x_list: list, y_list: list):
         if len(x_list) != len(y_list):
             raise ValueError("x_list 和 y_list 长度不一致")
         print(form_id)

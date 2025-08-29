@@ -15,6 +15,7 @@ from utils.data_manager import DataManager
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from utils.print_doc import print_doc
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -23,6 +24,10 @@ class MainWindow(QMainWindow):
         self.resize(2000,1000)
         self.init_ui()
         self.load_styles()
+        # 预期恒定度
+        self.target_constancy_value = 6
+        # 正在处理的表单数据id，默认-1，打印用
+        self.now_handle_data_id = -1
 
     def init_ui(self):
         """初始化主界面布局"""
@@ -69,6 +74,7 @@ class MainWindow(QMainWindow):
         self.toolbar.history_visible.connect(self.history_visible)
         self.toolbar.save_btn.clicked.connect(self.save_data)
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
+        self.toolbar.menu_btn.print_doc_signal.connect(self.handle_print_doc)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -86,6 +92,10 @@ class MainWindow(QMainWindow):
 
         # 最大化启动
         self.showMaximized()
+
+    def handle_print_doc(self):
+        from utils.print_doc import print_doc
+        print_doc(self.now_handle_data_id)
 
     def load_styles(self):
         """加载样式表"""
@@ -120,6 +130,7 @@ class MainWindow(QMainWindow):
         data = self.chart_widget1.get_all_data()
         print("get data", data)
         last_id = DataManager.save_detail(data[0])
+        self.now_handle_data_id = last_id
         DataManager.save_test_data(last_id, data[1], data[2])
 
     def edit_data(self):
@@ -144,10 +155,10 @@ class MainWindow(QMainWindow):
         minP = min(points)
         mid = (maxP + minP) / 2
 
-        if constancy < 7:
+        if constancy < self.target_constancy_value:
             return
         self.chart_widget1.adjust_center = mid
-        self.chart_widget1.adjust_number = (constancy - 7) / 100
+        self.chart_widget1.adjust_number = (constancy - self.target_constancy_value) / 100
 
 
     def calculate_constancy(self, points):

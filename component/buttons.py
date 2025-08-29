@@ -16,10 +16,15 @@ class ChartButton2(QPushButton):
 
 # 菜单button
 class MenuButton(QPushButton):
+    # 用于打印的信号量
+    print_doc_signal = pyqtSignal(int) 
+    
     def __init__(self, parent=None):
         super().__init__("操作菜单", parent)
         self.setCursor(Qt.PointingHandCursor)
         self._create_menu()
+        # 当前处理的数据表ID
+        self._now_handle_data_id = - 1
 
     def _create_menu(self):
         self.menu = QMenu(self)
@@ -82,13 +87,14 @@ class MenuButton(QPushButton):
                     self.menu.addAction(action)
 
         self.setMenu(self.menu)
+        
+    def set_now_handle_data_id(self, data_id):
+        self._now_handle_data_id = data_id
+
 
     def _on_menu_clicked(self, text):
-        """菜单项点击事件处理"""
         print(f"菜单项被点击: {text}")
         if text == "打印(M)":
             print(os.getcwd())
-            from utils.print_doc import print_doc
-            print_doc()
-        # 这里可以发射信号或调用回调函数
-        # 实际应用中可以将此信号连接到主窗口的槽函数
+            # 发射打印信号量
+            self.print_doc_signal.emit(self._now_handle_data_id) 

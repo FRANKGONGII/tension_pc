@@ -38,6 +38,7 @@ class SerialReader(QObject):
             self.ser.close()
 
     def read_data(self):
+        print("status", )
         while self._running:
             try:
                 if self.ser.in_waiting:
@@ -48,6 +49,7 @@ class SerialReader(QObject):
                 break
 
 
+    # 注意这里生成的是以55为中心的随机数
     def test(self):
         from random import uniform
         y = 200
