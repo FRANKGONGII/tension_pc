@@ -2,7 +2,9 @@ import os
 
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
-from docx.shared import Inches, Pt
+from docx.oxml import OxmlElement
+from docx.oxml.shared import qn
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 def print_doc(now_handle_data_id=-1):
@@ -17,17 +19,72 @@ def print_doc(now_handle_data_id=-1):
 
     # 创建文档
     doc = Document()
+    doc.styles['Normal'].font.name = 'SimSun'
+    doc.styles['Normal']._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+    doc.styles['Title'].font.name = 'SimSun'
+    doc.styles['Title']._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+    doc.styles['Heading 1'].font.name = 'SimSun'
+    doc.styles['Heading 1']._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+
+    # 获取第一个节（默认文档只有一个节）
+    section = doc.sections[0]
+
+    # 设置页边距（单位：英寸）
+    section.top_margin = Inches(0.2)  # 上边距 1英寸
+    section.bottom_margin = Inches(0.5)  # 下边距 1英寸
+    section.left_margin = Inches(0.7)  # 左边距 1.25英寸
+    section.right_margin = Inches(0.7)  # 右边距 1.25英寸
+
+    footer = section.footer
+    # 添加固定的页脚文本
+    paragraph = footer.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER  # 居中对齐
+    run = paragraph.add_run('第 1 页')
+    run.font.size = Pt(8)  # 设置字体大小
+
+
 
     # 添加公司名和标题（居中）
-    doc.add_paragraph("江苏慧通管道设备股份有限公司", style='Title').alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("JiangShu Huitong Pipeline Equipment Co.Ltd").alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("恒力吊架性能试验记录", style='Heading 1').alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("Constant Hanger Performance Test Record").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    def set_simsun_font(run, size=12, bold=False):
+        """为指定的run设置宋体字体"""
+        run.font.name = 'SimSun'
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+        run.font.size = Pt(size)
+        run.bold = bold
+        return run
+
+    # 添加公司名和标题（居中）并设置宋体
+    def add_centered_text_with_simsun(content, font_size=12, bold=False, style=None):
+        paragraph = doc.add_paragraph(style=style)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = paragraph.add_run(content)
+        set_simsun_font(run, font_size, bold)
+        run.font.color.rgb = RGBColor(0, 0, 0)  # 设置为黑色
+        # 设置段前段后为0，行距为单倍
+        paragraph_format = paragraph.paragraph_format
+        paragraph_format.space_before = Pt(0)
+        paragraph_format.space_after = Pt(0)
+        paragraph_format.line_spacing = 1.0
+        return paragraph
+
+    # 添加中文标题（大号宋体，加粗）
+    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=20, bold=True, style='Heading 1')
+
+    # 添加英文公司名（正常宋体）
+    add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=16)
+
+    # 添加主标题（大号宋体，加粗）
+    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=16, bold=True, style='Heading 1')
+
+    # 添加英文副标题（正常宋体）
+    add_centered_text_with_simsun("Constant Hanger Performance Test Record", font_size=14)
 
     # 添加基本信息表格
     table1 = doc.add_table(rows=3, cols=6)
     table1.style = 'Table Grid'
 
+
+    # TODO：边框设置加粗
     # detail字段顺序见data_manager.py表结构
     # (id, test_time, user, 吊点代号, 出厂编号, 型号规格, 工作荷载, 位移方向, 总位移, 工作位移, 操作员, 检验员, 位移起始点值, 位移终止点值, 实测位移值, 超载试验值, 起止时间, 保持时间, 恒定度, 锁定位置，载荷偏差度, 测试结果)
     table1.rows[0].cells[0].text = "用户\nCustomer"
@@ -56,8 +113,23 @@ def print_doc(now_handle_data_id=-1):
     table1.rows[2].cells[1].text = safe_str(detail[4]) if detail else ""
     table1.rows[2].cells[3].text = safe_str(detail[7]) if detail else ""
     table1.rows[2].cells[5].text = safe_str(detail[9]) + "mm" if detail else ""
-    format_table_cells(table1, font_size=8)
-    doc.add_picture('./resources/png.png', width=Inches(6))  # 你可以调整大小
+    format_table_cells(table1, font_size=10)
+
+    # 添加一个 1x1 的表格
+    table = doc.add_table(rows=1, cols=1)
+    table.style = 'Table Grid'
+    # 获取单元格
+    cell = table.cell(0, 0)
+    # 在单元格内添加图片
+    paragraph = cell.paragraphs[0]  # 获取单元格内的段落
+    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6))  # 插入图片
+    # 方法1：设置段落居中（影响整个段落，包括图片）
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph_format = paragraph.paragraph_format
+    paragraph_format.space_before = Pt(10)
+    paragraph_format.space_after = Pt(5)
+
+
 
     # 查询test_data用于Pmax/Pmin
     x_list, y_list = DataManager.queryTestDataByFormId(now_handle_data_id)
@@ -93,7 +165,7 @@ def print_doc(now_handle_data_id=-1):
     # 陈广春
     top_table.cell(0, 10).merge(top_table.cell(1, 11))
     top_table.cell(0, 10).text = safe_str(detail[11]) if detail else ""
-    format_table_cells(top_table, font_size=8)
+    format_table_cells(top_table, font_size=10)
 
     # 其余内容为一个2x6表格
     main_table = doc.add_table(rows=2, cols=6)
@@ -111,7 +183,7 @@ def print_doc(now_handle_data_id=-1):
     main_table.cell(1, 3).text = safe_str(detail[16]) if detail else ""
     main_table.cell(1, 4).text = "超载实验保持时间\nDuration within\noverload test"
     main_table.cell(1, 5).text = safe_str(detail[17]) if detail else ""
-    format_table_cells(main_table, font_size=8)
+    format_table_cells(main_table, font_size=10)
 
     # 最后一个1行的表格，4个内容
     bottom_table = doc.add_table(rows=1, cols=8)
@@ -124,7 +196,7 @@ def print_doc(now_handle_data_id=-1):
     bottom_table.cell(0, 5).text = safe_str(detail[20]) if detail else ""
     bottom_table.cell(0, 6).text = "测试结果\nTest result"
     bottom_table.cell(0, 7).text = safe_str(detail[21]) if detail else ""
-    format_table_cells(bottom_table, font_size=8)
+    format_table_cells(bottom_table, font_size=10)
 
     # 保存 Word 文件
     doc.save("恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
@@ -133,14 +205,13 @@ def print_doc(now_handle_data_id=-1):
 
     def print_word_file(path):
         word = win32com.client.Dispatch("Word.Application")
-        word.ActivePrinter = "EPSON4D76BB (L4160 Series)"
+        word.ActivePrinter = "Canon iP1188 series"
         doc = word.Documents.Open(path)
         doc.PrintOut()  # 打印
         # ActivePrinter="EPSON4D76BB (L4160 Series)"
         doc.Close(False)
         word.Quit()
-
-
+    # print_word_file(os.getcwd() + "/恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
 
 
 

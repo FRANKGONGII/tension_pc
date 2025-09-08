@@ -101,7 +101,7 @@ class TestViewWidget_1(QWidget):
 
         # 初始化串口监听
         self.listening = True  # 状态变量：是否正在监听串口
-        self.serial_reader = SerialReader(port='COM1', baudrate=9600)
+        self.serial_reader = SerialReader(port='COM7', baudrate=9600)
         self.serial_reader.data_received.connect(self.handle_data)
 
 
@@ -218,6 +218,12 @@ class TestViewWidget_1(QWidget):
             print("载荷", base)
             line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+            self.inputs["恒定度"].setText("")
+            self.inputs["总位移"].setText("")
+            self.inputs["位移终止点值"].setText("")
+            self.inputs["位移起始点值"].setText("")
+            self.inputs["实测位移值"].setText("")
+            self.inputs["载荷偏差度"].setText("")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # 开始生成数据
@@ -246,7 +252,7 @@ class TestViewWidget_1(QWidget):
             total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
             self.inputs["总位移"].setText(f"{total_displacement:.2f}")
             # 写入位移终止点值
-            end_value = max(self._record_dot_y)
+            end_value = self._record_dot_y[-1]
             self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
             # 写入位移起始点值
             start_value = self._record_dot_y[0]
@@ -260,7 +266,7 @@ class TestViewWidget_1(QWidget):
                 load_values = calculate_load_deviation(float(base), self._record_dot_x)
                 self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
 
-    def create_chart(self, x: list, y: list):
+    def create_chart(self, x: list, y: list, x_center=5000, y_center=5000):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground('w')
         self.plot_widget.setTitle("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', size='14pt')
@@ -279,8 +285,8 @@ class TestViewWidget_1(QWidget):
         # 设置移动获取坐标
         self.plot_widget.getViewBox().invertY(True)
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
-        self.plot_widget.setXRange(40, 80)
-        self.plot_widget.setYRange(100, 250)
+        self.plot_widget.setXRange(x_center / 2, x_center * 2)
+        self.plot_widget.setYRange(y_center + 500, y_center + 600)
 
 
     def update_chart(self, x: list, y: list):
@@ -373,7 +379,7 @@ class TestViewWidget_1(QWidget):
             else:
                 x = x * (1 - self.adjust_number)
 
-        print("get data:", x, y, self._record_dot_x, self._record_dot_y)
+        # print("get data:", x, y, self._record_dot_x, self._record_dot_y)
         self._cnt_receive_dot += 1
         self.received_data_changed.emit([x, y])
         self.update_chart(self._record_dot_x, self._record_dot_y)
