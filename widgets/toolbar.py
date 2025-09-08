@@ -218,7 +218,7 @@ class ToolBarWidget(QToolBar):
         except ValueError as e:
             # 显示错误消息
             from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "输入错误", str(e)))
+            QMessageBox.warning(self, "输入错误", str(e))
 
     def get_show_buttons(self):
         return self._show_buttons
