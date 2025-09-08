@@ -43,7 +43,8 @@ class TestViewWidget_1(QWidget):
     _x_initial = None
     # 拔销值
     _pin_pull_value = None
-
+    # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
+    _latest_x_value = None
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -52,6 +53,9 @@ class TestViewWidget_1(QWidget):
         self.if_start = True
         self.restart = False
         self.plot_widget = pg.PlotWidget()
+        # x轴范围变量
+        self.current_x_min = 2500
+        self.current_x_max = 10000
 
         # 整体布局：上方左右 + 下方表格
         main_layout = QHBoxLayout()
@@ -232,6 +236,28 @@ class TestViewWidget_1(QWidget):
 
     def on_start_clicked(self):
         if self.btn1.isEnabled():
+            # 检查是否已输入工作载荷
+            try:
+                base_value = self.input_manager.get_value("工作载荷")
+                # 确保工作载荷不为空且是有效的数字，并且大于0
+                if not base_value or float(base_value) <= 0:
+                    QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
+                    return
+            except (ValueError, TypeError):
+                QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
+                return
+            
+            # 检查是否已输入工作位移
+            try:
+                displacement_value = self.input_manager.get_value("工作位移")
+                # 确保工作位移不为空且是有效的数字，并且大于0
+                if not displacement_value or float(displacement_value) <= 0:
+                    QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
+                    return
+            except (ValueError, TypeError):
+                QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
+                return
+            
             # 逻辑处理
             print("开始按钮被点击")
             self.btn1.setEnabled(False)
@@ -246,12 +272,9 @@ class TestViewWidget_1(QWidget):
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
-            # 清空x轴初始值和拔销值
-            self._x_initial = None
-            self._pin_pull_value = None
-            # 清空表单中的拔销值显示
-            if "拔销值" in self.inputs:
-                self.inputs["拔销值"].setText("")
+            # 不清空表单中的拔销值显示
+            # if "拔销值" in self.inputs:
+            #     self.inputs["拔销值"].setText("")
             if self.restart == True:
                 self.plot_widget.clear()
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
@@ -277,28 +300,30 @@ class TestViewWidget_1(QWidget):
     # 点击结束要计算一些项目，并忽略后续数据
     def on_zero_clicked(self):
         """记录x初始值，用于后续去0"""
-        if not self.btn1.isEnabled() and self.btn2.isEnabled() and self._record_dot_x:
-            # 当开始按钮被禁用且结束按钮被启用时，表示正在测试过程中
-            # 记录当前最新的x值作为初始值
-            self._x_initial = self._record_dot_x[-1]
+        if self._latest_x_value is not None:
+            # 记录最新的x值作为初始值
+            # DEBUG：初始值先给个100
+            # self._x_initial = self._latest_x_value
+            self._x_initial = 100
             print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial}")
         else:
-            QMessageBox.warning(self, "警告", "请先点击开始按钮开始测试")
+            QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
 
     def on_pin_pull_clicked(self):
         """记录当前x值作为拔销值"""
-        if not self.btn1.isEnabled() and self.btn2.isEnabled() and self._record_dot_x:
-            # 当开始按钮被禁用且结束按钮被启用时，表示正在测试过程中
-            # 记录当前最新的x值作为拔销值
-            self._pin_pull_value = self._record_dot_x[-1]
+        if self._latest_x_value is not None:
+            # 记录最新的x值作为拔销值
+            # DEBUG：拔销值先给个100
+            # self._pin_pull_value = self._latest_x_value
+            self._pin_pull_value = 100
             # 在左侧表单中显示拔销值
             if "拔销值" in self.inputs:
                 self.inputs["拔销值"].setText(f"{self._pin_pull_value:.3f}")
             print(f"记录拔销值: {self._pin_pull_value}")
             QMessageBox.information(self, "提示", f"已记录拔销值: {self._pin_pull_value:.3f}")
         else:
-            QMessageBox.warning(self, "警告", "请先点击开始按钮开始测试")
+            QMessageBox.warning(self, "警告", "暂无数据可记录拔销值")
 
     def on_end_clicked(self):
         if self.btn2.isEnabled():
@@ -309,6 +334,9 @@ class TestViewWidget_1(QWidget):
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
+            # 清空x轴初始值和拔销值
+            self._x_initial = None
+            self._pin_pull_value = None
             # 计算一些值
             # 写入恒定度
             constancy = calculate_constancy(self._record_dot_x)
@@ -370,6 +398,9 @@ class TestViewWidget_1(QWidget):
         self._record_dot_x = x
         self._cnt_receive_dot = 0
 
+        # 应用当前的x轴范围设置
+        self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+        
         # 插入边界线
         base = int(self.input_manager.get_value("工作载荷"))
         print("载荷", base)
@@ -411,6 +442,14 @@ class TestViewWidget_1(QWidget):
         new_x, new_y = find_non_overlapping_pos(x, y)
         label.setPos(new_x, new_y)
         self.plot_widget.addItem(label)
+        
+    def set_x_range(self, x_min, x_max):
+        """设置图表的x轴范围"""
+        self.current_x_min = x_min
+        self.current_x_max = x_max
+        if hasattr(self, 'plot_widget'):
+            self.plot_widget.setXRange(x_min, x_max)
+            print(f"已设置x轴范围: {x_min}-{x_max}")
 
 
     def on_mouse_moved(self, evt):
@@ -440,6 +479,9 @@ class TestViewWidget_1(QWidget):
 
     def handle_data(self, data):
         x, y = ast.literal_eval(data)
+        # 时刻记录最新的x值，独立于_record_dot_x结构
+        self._latest_x_value = x
+        
         print(self.adjust_center, self.adjust_number)
         if self.adjust_center != -1:
             print("will adjust number")
@@ -449,6 +491,7 @@ class TestViewWidget_1(QWidget):
                 x = x * (1 - self.adjust_number)
         
         # 实现x轴去0逻辑：如果已经记录了初始值，则减去该值
+        print("init", self._latest_x_value)
         if self._x_initial is not None:
             x = x - self._x_initial
             # 确保x值不为负
@@ -467,10 +510,16 @@ class TestViewWidget_1(QWidget):
         elif self._has_recorded_start:
             # 减去偏移量，保持相对变化
             y = y - self._y_start
-
-        # print("get data:", x, y, self._record_dot_x, self._record_dot_y)
-        self._cnt_receive_dot += 1
+            
+        # 发射处理后的数据到data_display
         self.received_data_changed.emit([x, y])
+        
+        if self.serial_reader._sending_data == False:
+            return
+        
+        print("get data:", x, y)
+        self._cnt_receive_dot += 1
+        # 更新图表
         self.update_chart(self._record_dot_x, self._record_dot_y)
         # TODO：按照位移y坐标间隔一定标记一个点
         if self._cnt_receive_dot % self._show_dot_duration == 0:
@@ -478,7 +527,8 @@ class TestViewWidget_1(QWidget):
             # 保存图片
             pixmap = self.plot_widget.grab()
             pixmap.save("./resources/png.png")
-
+        
+        # 添加到记录列表
         self._record_dot_x.append(x)
         self._record_dot_y.append(y)
 

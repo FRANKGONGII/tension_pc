@@ -81,21 +81,18 @@ class SerialReader(QObject):
                                     }
                                     print(parsed)
                                     data = f"({force}, {distance})"
-                                    # 只有当_sending_data为True时才发送数据
-                                    if self._sending_data:
-                                        self.data_received.emit(data)
+                                    # 无条件发送数据，确保data_display能接收到
+                                    self.data_received.emit(data)
                                 else:
                                     print("无效报文:", one_record)
 
                             except Exception as e:
                                 print(f"解析错误: {e}, 报文={one_record}")
-                                # 只有当_sending_data为True时才发送错误信息
-                                if self._sending_data:
-                                    self.data_received.emit(one_record)
+                                # 无条件发送错误信息，确保data_display能接收到
+                                self.data_received.emit(one_record)
             except Exception as e:
-                # 只有当_sending_data为True时才发送错误信息
-                if self._sending_data:
-                    self.data_received.emit(f"[读取错误] {e}")
+                # 无条件发送错误信息，确保data_display能接收到
+                self.data_received.emit(f"[读取错误] {e}")
                 # 不中断循环，继续尝试读取数据
                 time.sleep(0.1)
 
@@ -119,10 +116,9 @@ class SerialReader(QObject):
                 # 转换为整数，去掉小数点
                 x = int(x)
                 data = f"({x}, {y})"
-                # 只有当_sending_data为True时才发送数据
-                if self._sending_data:
-                    print("send data:", data)
-                    self.data_received.emit(data)
+                # 无条件发送数据，确保data_display能接收到
+                print("send data:", data)
+                self.data_received.emit(data)
                     
                 i += 1
                 if i >= 100:  # 重置循环，使数据持续波动

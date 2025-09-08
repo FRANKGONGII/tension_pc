@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self.toolbar.save_btn.clicked.connect(self.save_data)
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
         self.toolbar.menu_btn.print_doc_signal.connect(self.handle_print_doc)
+        self.toolbar.x_range_changed.connect(self.on_x_range_changed)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -118,6 +119,15 @@ class MainWindow(QMainWindow):
 
     def switch_chart_2(self):
         self.stack.setCurrentIndex(2)
+        
+    def on_x_range_changed(self, x_min, x_max):
+        """处理x轴范围变化的信号"""
+        if self.stack.currentIndex() == 1:
+            # 当前显示的是TestViewWidget_1
+            self.chart_widget1.set_x_range(x_min, x_max)
+        elif self.stack.currentIndex() == 2:
+            # 如果TestViewWidget_2也需要支持x轴范围调整，可以在这里添加
+            pass
 
     def change_visible(self):
         self.chart_widget1.change_retest_visible()
