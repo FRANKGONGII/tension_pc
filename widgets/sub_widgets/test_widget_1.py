@@ -15,6 +15,10 @@ from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
 from utils.calculate import *
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import numpy as np
 
 
 class TestViewWidget_1(QWidget):
@@ -414,9 +418,8 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot += 1
             if self._cnt_receive_dot % self._show_dot_duration == 0:
                 self.highlight_plot(x[i], y[i])
-                # 保存图片
-                pixmap = self.plot_widget.grab()
-                pixmap.save("./resources/png.png")
+                # 使用matplotlib保存高质量图片
+                self.save_high_res_chart()
 
 
     def highlight_plot(self, x: float, y: float):
@@ -442,6 +445,57 @@ class TestViewWidget_1(QWidget):
         new_x, new_y = find_non_overlapping_pos(x, y)
         label.setPos(new_x, new_y)
         self.plot_widget.addItem(label)
+    
+    def save_high_res_chart(self):
+        """使用matplotlib重新绘制图表并保存为高质量PNG"""
+        # 设置matplotlib支持中文显示
+        plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
+        
+        # 创建matplotlib图表
+        fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
+        
+        # 绘制数据点
+        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=10, alpha=0.7)
+        
+        # 绘制每隔10个点显示x值的点
+        highlighted_indices = range(0, len(self._record_dot_x), self._show_dot_duration)
+        highlighted_x = [self._record_dot_x[i] for i in highlighted_indices]
+        highlighted_y = [self._record_dot_y[i] for i in highlighted_indices]
+        ax.scatter(highlighted_x, highlighted_y, color='red', s=30, edgecolor='black', alpha=1.0)
+        
+        # 在每个高亮点旁边添加x值标签（不使用框框）
+        for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
+            # 确定标签位置，避免重叠
+            label_x = x - 2.0 if y < max(self._record_dot_y) / 2 else x + 2.0
+            label_y = y - 2.0
+            ax.text(label_x, label_y, f'{x:.3f}', fontsize=8, ha='center', va='top', color='black')
+        
+        # 绘制工作载荷的上下5%线
+        base = int(self.input_manager.get_value("工作载荷"))
+        ax.axvline(x=base * 1.05, color='red', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 0.95, color='green', linestyle='--', linewidth=1.5)
+        
+        # 设置坐标轴标签和标题
+        ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=14)
+        ax.set_xlabel('载荷Load(N)', fontsize=12)
+        ax.set_ylabel('位移Travel(mm)', fontsize=12)
+        
+        # 设置坐标轴范围
+        ax.set_xlim(self.current_x_min, self.current_x_max)
+        ax.set_ylim(0, 200)
+        
+        # 设置y轴为0在上（反转y轴）
+        ax.invert_yaxis()
+        
+        # 添加网格线
+        ax.grid(True, linestyle='--', alpha=0.7)
+        
+        # 调整布局
+        plt.tight_layout()
+        
+        # 保存为PNG文件
+        plt.savefig("./resources/png.png", dpi=300, bbox_inches='tight')
+        plt.close(fig)  # 关闭图表以释放内存
         
     def set_x_range(self, x_min, x_max):
         """设置图表的x轴范围"""
@@ -524,9 +578,8 @@ class TestViewWidget_1(QWidget):
         # TODO：按照位移y坐标间隔一定标记一个点
         if self._cnt_receive_dot % self._show_dot_duration == 0:
             self.highlight_plot(x, y)
-            # 保存图片
-            pixmap = self.plot_widget.grab()
-            pixmap.save("./resources/png.png")
+            # 使用matplotlib保存高质量图片
+            self.save_high_res_chart()
         
         # 添加到记录列表
         self._record_dot_x.append(x)
