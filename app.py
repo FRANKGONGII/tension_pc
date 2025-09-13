@@ -85,7 +85,9 @@ class MainWindow(QMainWindow):
 
         # 创建查询侧边栏
         self.dock = QDockWidget("查询栏", self)
-        self.dock.setWidget(SearchHistoryWidget())
+        self.search_history_widget = SearchHistoryWidget()
+        self.search_history_widget.set_main_window(self)
+        self.dock.setWidget(self.search_history_widget)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.dock.setMinimumWidth(dock_width)
         self.dock.setMaximumWidth(dock_width)

@@ -45,8 +45,8 @@ class SearchHistoryWidget(QWidget):
         layout.addWidget(self.search_box)
 
         # 表格控件
-        self.table = QTableWidget(5, 4)  # 修改为4列，添加文件链接列
-        self.table.setHorizontalHeaderLabels(["试验日期", "用户", "出场编号", "文件链接"])
+        self.table = QTableWidget(5, 5)  # 修改为5列，添加导入按钮列
+        self.table.setHorizontalHeaderLabels(["试验日期", "用户", "出场编号", "文件链接", "操作"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         # 连接单元格点击信号以处理链接点击
@@ -66,6 +66,9 @@ class SearchHistoryWidget(QWidget):
         self.search_box.returnPressed.connect(self.handle_search)
         self.year_box.currentIndexChanged.connect(self.handle_search)
         self.handle_search()
+        
+        # 存储主窗口的引用，用于访问test_widget_1
+        self.main_window = None
 
     def handle_cell_click(self, row, column):
         """处理单元格点击事件，若点击的是文件链接列，则尝试打开文件"""
@@ -104,7 +107,8 @@ class SearchHistoryWidget(QWidget):
             
             # 添加基本信息列
             for col_index, value in enumerate(row_data):
-                self.table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
+                if col_index < 3:  # 前3列是基本信息
+                    self.table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
             
             # 添加文件链接列
             if len(row_data) > 3 and row_data[3]:  # 确保有ID信息
@@ -120,6 +124,19 @@ class SearchHistoryWidget(QWidget):
                 link_item.setData(Qt.UserRole, file_path)
                 
                 self.table.setItem(row_index, 3, link_item)
+            
+            # 添加导入按钮列
+            import_btn = QPushButton("导入")
+            import_btn.setProperty("data_id", str(row_data[3]))  # 存储数据ID
+            import_btn.clicked.connect(self.on_import_clicked)
+            # 创建单元格小部件容器
+            btn_widget = QWidget()
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.addWidget(import_btn)
+            btn_layout.setAlignment(Qt.AlignCenter)
+            btn_layout.setContentsMargins(2, 2, 2, 2)
+            btn_widget.setLayout(btn_layout)
+            self.table.setCellWidget(row_index, 4, btn_widget)
 
     def query_records(self, mode, year, keyword):
         if mode == "试验日期":
@@ -134,6 +151,86 @@ class SearchHistoryWidget(QWidget):
         print(result, year, keyword)
         # 返回包含ID的结果，用于创建文件链接
         return [ [row[1], row[2], row[4], row[0]] for row in result ]  # row[0] 是数据库ID
+        
+    def on_import_clicked(self):
+        """处理导入按钮点击事件"""
+        # 获取按钮的属性，得到数据ID
+        sender = self.sender()
+        data_id = sender.property("data_id")
+        
+        if data_id:
+            try:
+                # 从数据库查询该ID的详细数据
+                detail_data = DataManager.queryById(int(data_id))
+                # 查询该ID的测试数据
+                x_list, y_list = DataManager.queryTestDataByFormId(int(data_id))
+                
+                # 显示导入成功的提示
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.information(self, "导入成功", f"已成功导入ID为{data_id}的数据")
+                
+                # 这里需要将数据传递给chart_widget1
+                # 如果能够获取到main_window的引用，可以直接调用chart_widget1的方法
+                if self.main_window and hasattr(self.main_window, 'chart_widget1'):
+                    # 将数据传递给chart_widget1
+                    test_widget = self.main_window.chart_widget1
+                    
+                    # 填充表单数据
+                    if detail_data:
+                        # 试验时间
+                        if hasattr(test_widget, 'time_input'):
+                            test_widget.time_input.setText(detail_data[1])
+                        # 用户
+                        if detail_data[2] and "用户" in test_widget.inputs:
+                            test_widget.inputs["用户"].setCurrentText(detail_data[2])
+                        # 吊点代号
+                        if detail_data[3] and "吊点代号" in test_widget.inputs:
+                            test_widget.inputs["吊点代号"].setCurrentText(detail_data[3])
+                        # 出厂编号
+                        if detail_data[4] and "出厂编号" in test_widget.inputs:
+                            test_widget.inputs["出厂编号"].setText(detail_data[4])
+                        # 型号规格
+                        if detail_data[5] and "型号规格" in test_widget.inputs:
+                            test_widget.inputs["型号规格"].setText(detail_data[5])
+                        # 工作载荷
+                        if detail_data[6] and "工作载荷" in test_widget.inputs:
+                            test_widget.inputs["工作载荷"].setText(detail_data[6])
+                        # 位移方向
+                        if detail_data[7] and "位移方向" in test_widget.inputs:
+                            test_widget.inputs["位移方向"].setCurrentText(detail_data[7])
+                        # 总位移
+                        if detail_data[8] and "总位移" in test_widget.inputs:
+                            test_widget.inputs["总位移"].setText(detail_data[8])
+                        # 工作位移
+                        if detail_data[9] and "工作位移" in test_widget.inputs:
+                            test_widget.inputs["工作位移"].setText(detail_data[9])
+                        # 操作员
+                        if detail_data[10] and "操作员" in test_widget.inputs:
+                            test_widget.inputs["操作员"].setCurrentText(detail_data[10])
+                        # 检验员
+                        if detail_data[11] and "检验员" in test_widget.inputs:
+                            test_widget.inputs["检验员"].setCurrentText(detail_data[11])
+                        # 其他字段...
+                        fields = [
+                            (12, "位移起始点值"), (13, "位移终止点值"), (14, "实测位移值"),
+                            (15, "超载试验值"), (16, "起始 - 终止时间"), (17, "超载试验保持时间"),
+                            (18, "恒定度"), (19, "锁定位置"), (20, "载荷偏差度"), (21, "测试结果")
+                        ]
+                        for idx, field_name in fields:
+                            if detail_data[idx] and field_name in test_widget.inputs:
+                                test_widget.inputs[field_name].setText(detail_data[idx])
+                    
+                    # 更新图表数据
+                    if hasattr(test_widget, 'rewrite_chart'):
+                        test_widget.rewrite_chart(x_list, y_list)
+            except Exception as e:
+                print(f"导入数据时出错: {e}")
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "导入失败", f"导入数据时出错: {str(e)}")
+                
+    def set_main_window(self, main_window):
+        """设置主窗口引用，用于访问test_widget_1"""
+        self.main_window = main_window
 
 
 
