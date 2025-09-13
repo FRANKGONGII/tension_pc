@@ -11,6 +11,65 @@ def print_doc(now_handle_data_id=-1):
     from docx import Document
     from docx.shared import Inches, Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    
+    def set_table_border(table, top=False, bottom=False, left=False, right=False, thickness=10):
+        """设置表格边框粗细
+        """
+        # 获取表格属性
+        tbl = table._tbl
+        tbl_pr = tbl.tblPr
+        
+        # 创建或获取表格边框设置
+        tbl_borders = tbl_pr.find(qn('w:tblBorders'))
+        if tbl_borders is None:
+            tbl_borders = OxmlElement('w:tblBorders')
+            tbl_pr.append(tbl_borders)
+        
+        # 设置上下边框
+        if top:
+            top_border = OxmlElement('w:top')
+            top_border.set(qn('w:val'), 'single')
+            top_border.set(qn('w:sz'), str(thickness))
+            top_border.set(qn('w:space'), '0')
+            top_border.set(qn('w:color'), 'auto')
+            # 移除现有的top边框（如果存在）
+            for e in tbl_borders.findall(qn('w:top')):
+                tbl_borders.remove(e)
+            tbl_borders.append(top_border)
+            
+        if bottom:
+            bottom_border = OxmlElement('w:bottom')
+            bottom_border.set(qn('w:val'), 'single')
+            bottom_border.set(qn('w:sz'), str(thickness))
+            bottom_border.set(qn('w:space'), '0')
+            bottom_border.set(qn('w:color'), 'auto')
+            # 移除现有的bottom边框（如果存在）
+            for e in tbl_borders.findall(qn('w:bottom')):
+                tbl_borders.remove(e)
+            tbl_borders.append(bottom_border)
+        
+        # 设置左右边框
+        if left:
+            left_border = OxmlElement('w:left')
+            left_border.set(qn('w:val'), 'single')
+            left_border.set(qn('w:sz'), str(thickness))
+            left_border.set(qn('w:space'), '0')
+            left_border.set(qn('w:color'), 'auto')
+            # 移除现有的left边框（如果存在）
+            for e in tbl_borders.findall(qn('w:left')):
+                tbl_borders.remove(e)
+            tbl_borders.append(left_border)
+        
+        if right:
+            right_border = OxmlElement('w:right')
+            right_border.set(qn('w:val'), 'single')
+            right_border.set(qn('w:sz'), str(thickness))
+            right_border.set(qn('w:space'), '0')
+            right_border.set(qn('w:color'), 'auto')
+            # 移除现有的right边框（如果存在）
+            for e in tbl_borders.findall(qn('w:right')):
+                tbl_borders.remove(e)
+            tbl_borders.append(right_border)
 
     # 查询数据库获取数据
     from utils.data_manager import DataManager
@@ -114,10 +173,14 @@ def print_doc(now_handle_data_id=-1):
     table1.rows[2].cells[3].text = safe_str(detail[7]) if detail else ""
     table1.rows[2].cells[5].text = safe_str(detail[9]) + "mm" if detail else ""
     format_table_cells(table1, font_size=10)
+    # 设置第一个表格的上边和左右边加粗
+    set_table_border(table1, top=True, left=True, right=True)
 
     # 添加一个 1x1 的表格
     table = doc.add_table(rows=1, cols=1)
     table.style = 'Table Grid'
+    # 设置这个表格的左右边加粗
+    set_table_border(table, left=True, right=True)
     # 获取单元格
     cell = table.cell(0, 0)
     # 在单元格内添加图片
@@ -166,6 +229,8 @@ def print_doc(now_handle_data_id=-1):
     top_table.cell(0, 10).merge(top_table.cell(1, 11))
     top_table.cell(0, 10).text = safe_str(detail[11]) if detail else ""
     format_table_cells(top_table, font_size=10)
+    # 设置这个表格的左右边加粗
+    set_table_border(top_table, left=True, right=True)
 
     # 其余内容为一个2x6表格
     main_table = doc.add_table(rows=2, cols=6)
@@ -184,6 +249,8 @@ def print_doc(now_handle_data_id=-1):
     main_table.cell(1, 4).text = "超载实验保持时间\nDuration within\noverload test"
     main_table.cell(1, 5).text = safe_str(detail[17]) if detail else ""
     format_table_cells(main_table, font_size=10)
+    # 设置这个表格的左右边加粗
+    set_table_border(main_table, left=True, right=True)
 
     # 最后一个1行的表格，4个内容
     bottom_table = doc.add_table(rows=1, cols=8)
@@ -197,6 +264,8 @@ def print_doc(now_handle_data_id=-1):
     bottom_table.cell(0, 6).text = "测试结果\nTest result"
     bottom_table.cell(0, 7).text = safe_str(detail[21]) if detail else ""
     format_table_cells(bottom_table, font_size=10)
+    # 设置最后一个表格的下边和左右边加粗
+    set_table_border(bottom_table, bottom=True, left=True, right=True)
 
     # 保存 Word 文件
     doc.save("恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")

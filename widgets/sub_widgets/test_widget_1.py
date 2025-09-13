@@ -455,13 +455,13 @@ class TestViewWidget_1(QWidget):
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
         
         # 绘制数据点
-        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=10, alpha=0.7)
+        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
         
         # 绘制每隔10个点显示x值的点
         highlighted_indices = range(0, len(self._record_dot_x), self._show_dot_duration)
         highlighted_x = [self._record_dot_x[i] for i in highlighted_indices]
         highlighted_y = [self._record_dot_y[i] for i in highlighted_indices]
-        ax.scatter(highlighted_x, highlighted_y, color='red', s=30, edgecolor='black', alpha=1.0)
+        ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
         
         # 在每个高亮点旁边添加x值标签（不使用框框）
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
