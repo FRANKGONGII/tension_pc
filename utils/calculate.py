@@ -3,6 +3,7 @@
 def calculate_constancy(points):
     maxP = max(points)
     minP = min(points)
+    print("恒定度计算：",maxP, minP)
     return (maxP - minP) * 100 / (maxP + minP)
 
 # 计算平均载荷偏差度

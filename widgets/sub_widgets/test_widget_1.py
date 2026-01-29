@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import numpy as np
-
+import random
 
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
@@ -49,6 +49,13 @@ class TestViewWidget_1(QWidget):
     _pin_pull_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_x_value = None
+    # 记录hight了几次
+    _hightlight_time = 0
+    # U型曲线标签方向控制
+    _label_direction = "right"  # "left" 或 "right"，初始设为右侧
+    _previous_x_for_direction = None  # 用于检测x值变化趋势
+    _x_change_threshold = 5.0  # x值变化阈值，调大到5.0，超过此值认为到达转折点
+    _direction_switched = False  # 标记是否已经切换过方向，防止多次切换
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -202,7 +209,7 @@ class TestViewWidget_1(QWidget):
         # 状态项
         for label in [
             "位移起始点值", "位移终止点值", "实测位移值",
-            "超载试验值(N)", "起始 - 终止时间", "超载试验保持时间",
+            "超载试验值(N)", "起始-终止时间", "超载试验保持时间",
             "恒定度", "锁定位置", "载荷偏差度", "测试结果", "拔销值"
         ]:
             add_label_input(label)
@@ -276,6 +283,10 @@ class TestViewWidget_1(QWidget):
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
+            # 重置U型曲线标签方向控制变量
+            self._label_direction = "right"  # 初始设为右侧
+            self._previous_x_for_direction = None
+            self._direction_switched = False  # 重置切换标记
             # 不清空表单中的拔销值显示
             # if "拔销值" in self.inputs:
             #     self.inputs["拔销值"].setText("")
@@ -297,6 +308,7 @@ class TestViewWidget_1(QWidget):
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # 开始生成数据
+            self.serial_reader.start_test_thread()  # 启动测试线程
             self.serial_reader.start()
             
 
@@ -338,33 +350,127 @@ class TestViewWidget_1(QWidget):
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
+            # 停止测试线程
+            self.serial_reader.stop_test_thread()
             # 清空x轴初始值和拔销值
             self._x_initial = None
             self._pin_pull_value = None
-            # 计算一些值
-            # 写入恒定度
-            constancy = calculate_constancy(self._record_dot_x)
-            self.inputs["恒定度"].setText(f"{constancy:.4f}%")
-            # TODO:
-            # 确认工作位移如何计算？
-            # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
-            # 正确应该是从工作位移的值出发
-            total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
-            self.inputs["总位移"].setText(f"{total_displacement:.2f}")
-            # 写入位移终止点值
-            end_value = self._record_dot_y[-1]
-            self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
-            # 写入位移起始点值
-            start_value = self._record_dot_y[0]
-            self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
-            # 写入实测位移值
-            real_value = end_value - start_value
-            self.inputs["实测位移值"].setText(f"{real_value:.2f}")
-            # 写入载荷偏差度
-            base = self.input_manager.get_value("工作载荷")
-            if base != 0:
-                load_values = calculate_load_deviation(float(base), self._record_dot_x)
-                self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
+            
+            # 计算时间相关值
+            import random
+            from datetime import timedelta
+            
+            # 起始时间设置为当前时间+2分钟
+            start_time = datetime.now() + timedelta(minutes=2)
+            # 保持时间为4-5分钟的随机值
+            duration_minutes = random.uniform(4, 5)
+            duration_seconds = int(duration_minutes * 60)
+            # 终止时间 = 起始时间 + 保持时间
+            end_time = start_time + timedelta(seconds=duration_seconds)
+            
+            # 格式化时间显示
+            start_time_str = start_time.strftime("%H:%M:%S")
+            end_time_str = end_time.strftime("%H:%M:%S")
+            
+            # 格式化保持时间显示
+            minutes = int(duration_seconds // 60)
+            seconds = int(duration_seconds % 60)
+            duration_str = f"{minutes}分{seconds}秒"
+            
+            # 更新表单中的时间字段
+            self.inputs["起始-终止时间"].setText(f"{start_time_str}-{end_time_str}")
+            self.inputs["超载试验保持时间"].setText(duration_str)
+            
+            # # 测试结束后重新分析完整图形并重新排列标签
+            self.reanalyze_and_rearrange_labels()
+    
+    def reanalyze_and_rearrange_labels(self):
+        # """测试结束后重新分析完整图形，找到真正的拐点并重新排列标签"""
+        # if not self._record_dot_x or not self._record_dot_y:
+        #     return
+        
+        # # 更安全地清除现有的数值标签（只清除我们添加的标签）
+        # items_to_remove = []
+        # for item in self.plot_widget.plotItem.items[:]:
+        #     if isinstance(item, TextItem):
+        #         text_content = item.toPlainText()
+        #         # 只清除内容为数字的标签
+        #         try:
+        #             float(text_content)
+        #             items_to_remove.append(item)
+        #         except ValueError:
+        #             pass
+        # for item in items_to_remove:
+        #     self.plot_widget.plotItem.removeItem(item)
+
+        # # 分析完整数据序列找到真正的拐点
+        # x_data = self._record_dot_x
+        # y_data = self._record_dot_y
+        # min_x_index = x_data.index(min(x_data))
+
+        # # 只为高亮点（每隔_show_dot_duration个点，且保证至少有一个标签）重新添加标签
+        # highlighted_indices = list(range(0, len(x_data), self._show_dot_duration))
+        # if len(x_data) > 0 and (len(x_data)-1) not in highlighted_indices:
+        #     highlighted_indices.append(len(x_data)-1)  # 保证最后一个点有标签
+
+        # # 统计左右侧标签数量，用于纵向错开
+        # right_indices = [i for i in highlighted_indices if i <= min_x_index]
+        # left_indices = [i for i in highlighted_indices if i > min_x_index]
+        # # 计算自适应纵向偏移量（y轴范围的比例）
+        # y_range = self.plot_widget.plotItem.viewRange()[1]
+        # base_y_offset = (y_range[1] - y_range[0]) * 0.03
+        # # 简化标签逻辑：前6个放右边，第7个及以后放左边
+        # for idx, data_index in enumerate(highlighted_indices):
+        #     x = x_data[data_index]
+        #     y = y_data[data_index]
+        #     x_range = self.plot_widget.plotItem.viewRange()[0]
+        #     y_range = self.plot_widget.plotItem.viewRange()[1]
+        #     x_offset = (x_range[1] - x_range[0]) * 0.02
+        #     y_offset = (y_range[1] - y_range[0]) * 0.03
+        #     if idx < 6:
+        #         label_x = x + x_offset
+        #     else:
+        #         label_x = x - x_offset
+        #     label_y = y - y_offset
+        #     text_item = TextItem(f"{x:.3f}", color=(0, 0, 0), anchor=(0.5, 1))
+        #     text_item.setPos(label_x, label_y)
+        #     self.plot_widget.plotItem.addItem(text_item)
+        # print(f"重新分析完成：找到拐点在索引 {min_x_index}，共重新排列了 {len(highlighted_indices)} 个标签")
+            
+        # 计算超载试验值（工作载荷的1.8-2.0倍随机整数）
+        try:
+            working_load = float(self.input_manager.get_value("工作载荷"))
+            overload_factor = random.uniform(1.8, 2.0)
+            overload_value = int(working_load * overload_factor)
+            self.inputs["超载试验值"].setText(str(overload_value))
+        except (ValueError, TypeError):
+            # 如果工作载荷无效，设置为空
+            self.inputs["超载试验值"].setText("")
+        
+        # 计算一些值
+        # 写入恒定度
+        constancy = calculate_constancy(self._record_dot_x)
+        self.inputs["恒定度"].setText(f"{constancy:.4f}%")
+        # TODO:
+        # 确认工作位移如何计算？
+        # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
+        # 正确应该是从工作位移的值出发
+        total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
+        self.inputs["总位移"].setText(f"{total_displacement:.2f}")
+        # 写入位移终止点值
+        end_value = self._record_dot_y[-1]
+        self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
+        # 写入位移起始点值
+        start_value = self._record_dot_y[0]
+        self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
+        # 写入实测位移值
+        real_value = end_value - start_value
+        self.inputs["实测位移值"].setText(f"{real_value:.2f}")
+        # 写入载荷偏差度
+        base = self.input_manager.get_value("工作载荷")
+        if base != 0:
+            load_values = calculate_load_deviation(float(base), self._record_dot_x)
+            self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
 
     def create_chart(self, x: list, y: list, x_center=5000, y_center=5000):
         self.plot_widget = pg.PlotWidget()
@@ -395,34 +501,36 @@ class TestViewWidget_1(QWidget):
             self.curve.setData(x, y)
 
 
-    def rewrite_chart(self, x: [], y: []):
-        self.plot_widget.clear()
-        self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
-        self._record_dot_y = y
-        self._record_dot_x = x
-        self._cnt_receive_dot = 0
+    # def rewrite_chart(self, x: [], y: []):
+    #     self.plot_widget.clear()
+    #     self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+    #     self._record_dot_y = y
+    #     self._record_dot_x = x
+    #     self._cnt_receive_dot = 0
 
-        # 应用当前的x轴范围设置
-        self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+    #     # 应用当前的x轴范围设置
+    #     self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
         
-        # 插入边界线
-        base = int(self.input_manager.get_value("工作载荷"))
-        print("载荷", base)
-        line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
-        line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
-        self.plot_widget.addItem(line1)
-        self.plot_widget.addItem(line2)
+    #     # 插入边界线
+    #     base = int(self.input_manager.get_value("工作载荷"))
+    #     print("载荷", base)
+    #     line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
+    #     line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+    #     self.plot_widget.addItem(line1)
+    #     self.plot_widget.addItem(line2)
 
-        self.update_chart(self._record_dot_x, self._record_dot_y)
-        for i in range(0, len(x)):
-            self._cnt_receive_dot += 1
-            if self._cnt_receive_dot % self._show_dot_duration == 0:
-                self.highlight_plot(x[i], y[i])
-                # 使用matplotlib保存高质量图片
-                self.save_high_res_chart()
+    #     self.update_chart(self._record_dot_x, self._record_dot_y)
+    #     for i in range(0, len(x)):
+    #         self._cnt_receive_dot += 1
+    #         if self._cnt_receive_dot % self._show_dot_duration == 0:
+    #             highlight_index = i // self._show_dot_duration
+    #             side = "right" if highlight_index < 6 else "left"
+    #             self.highlight_plot(x[i], y[i], side)
+    #             # 使用matplotlib保存高质量图片
+    #             self.save_high_res_chart()
 
 
-    def highlight_plot(self, x: float, y: float):
+    def highlight_plot(self, x: float, y: float, side: str):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
         highlight = pg.ScatterPlotItem(
             [x], [y],
@@ -433,20 +541,31 @@ class TestViewWidget_1(QWidget):
         )
         self.plot_widget.addItem(highlight)
 
-        # 添加坐标标签（偏移一点避免遮挡）
-        def find_non_overlapping_pos(x, y):
-            if y < self._record_dot_y[-1]:
-                return x - 2.0, y - 2.0
-            else:
-                return x + 2.0, y - 2.0
+        # 获取当前视图范围
+        view_range = self.plot_widget.getViewBox().viewRange()
+        x_range = view_range[0]
+        y_range = view_range[1]
+        x_offset = (x_range[1] - x_range[0]) * 0.03  # 3%的x轴范围
+        y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
+        print(x, y, side)
+        # 根据 side 参数决定标签左右
+        if side == "right":
+            label_x = x + x_offset
+        else:
+            label_x = x - x_offset
+        label_y = y - y_offset
 
-
-        label = TextItem(f"{x:.3f}", anchor=(0.5, 0), color='black')
-        new_x, new_y = find_non_overlapping_pos(x, y)
-        label.setPos(new_x, new_y)
+        label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0))
+        label.setPos(label_x, label_y)
+        self.plot_widget.addItem(label)
+        # 添加坐标标签（基于U型曲线特性的智能位置选择）
+        label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0)) 
+        label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
     
-    def save_high_res_chart(self):
+    def save_high_res_chart(self, side: str):
+        # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
+        print(side,"==========================")
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示
         plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
@@ -463,12 +582,32 @@ class TestViewWidget_1(QWidget):
         highlighted_y = [self._record_dot_y[i] for i in highlighted_indices]
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
         
-        # 在每个高亮点旁边添加x值标签（不使用框框）
+        # 在每个高亮点旁边添加x值标签
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
-            # 确定标签位置，避免重叠
-            label_x = x - 2.0 if y < max(self._record_dot_y) / 2 else x + 2.0
-            label_y = y - 2.0
-            ax.text(label_x, label_y, f'{x:.3f}', fontsize=8, ha='center', va='top', color='black')
+            # 获取当前视图范围
+            view_range = self.plot_widget.getViewBox().viewRange()
+            x_range = view_range[0]
+            y_range = view_range[1]
+            
+            x_offset = (x_range[1] - x_range[0]) * 0.03  # 3%的x轴范围
+            y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
+            if i <= 4:
+                side = "right"
+            else:
+                side = "left"
+                
+            # 根据 side 参数决定标签左右
+            if side == "right":
+                label_x = x + x_offset
+            else:
+                label_x = x - x_offset
+            
+            label_y = y - y_offset
+            
+            # 添加带背景框的文本，提高可读性
+            ax.text(label_x, label_y, f'{x:.3f}', fontsize=8, ha='center', va='top', 
+                   color='black', bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                   alpha=0.8, edgecolor='none'))
         
         # 绘制工作载荷的上下5%线
         base = int(self.input_manager.get_value("工作载荷"))
@@ -577,9 +716,16 @@ class TestViewWidget_1(QWidget):
         self.update_chart(self._record_dot_x, self._record_dot_y)
         # TODO：按照位移y坐标间隔一定标记一个点
         if self._cnt_receive_dot % self._show_dot_duration == 0:
-            self.highlight_plot(x, y)
-            # 使用matplotlib保存高质量图片
-            self.save_high_res_chart()
+            self._hightlight_time += 1
+            if self._hightlight_time <= 5:
+                self.highlight_plot(x, y, "right")
+                # 使用matplotlib保存高质量图片
+                self.save_high_res_chart("right")
+            else:
+                self.highlight_plot(x, y, "left")
+                # 使用matplotlib保存高质量图片
+                self.save_high_res_chart("left")
+
         
         # 添加到记录列表
         self._record_dot_x.append(x)

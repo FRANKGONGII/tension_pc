@@ -18,16 +18,7 @@ class SerialReader(QObject):
         self._running = True  # 程序启动就开始运行
         self._sending_data = False  # 控制是否发送数据的变量
         self.thread = None
-        
-        # 程序启动就开始读取数据
-        try:
-            # self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
-            self.thread = threading.Thread(target=self.test)
-            self.thread.daemon = True
-            self.thread.start()
-        except serial.SerialException as e:
-            print(e)
-            self.data_received.emit(f"[串口错误] {e}")
+        self._test_thread_started = False  # 标记测试线程是否已启动
 
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程
@@ -38,6 +29,36 @@ class SerialReader(QObject):
         # 只修改控制发送数据的变量，不停止线程
         self._sending_data = False
         print("停止发送数据")
+
+    def stop_test_thread(self):
+        """停止测试线程"""
+        if self._test_thread_started:
+            print("正在停止测试线程...")
+            self._running = False  # 设置停止标志
+            
+            # 等待线程结束
+            if self.thread and self.thread.is_alive():
+                self.thread.join(timeout=2.0)  # 等待最多2秒
+                if self.thread.is_alive():
+                    print("警告: 测试线程未能正常停止")
+                else:
+                    print("测试线程已成功停止")
+            
+            self._test_thread_started = False
+            self._running = True  # 重置运行标志，以便下次启动
+
+    def start_test_thread(self):
+        """手动启动测试线程（仅在用户点击开始按钮时调用）"""
+        if not self._test_thread_started:
+            try:
+                self.thread = threading.Thread(target=self.test)
+                self.thread.daemon = True
+                self.thread.start()
+                self._test_thread_started = True
+                print("测试线程已启动")
+            except Exception as e:
+                print(f"启动测试线程时出错: {e}")
+                self.data_received.emit(f"[测试线程错误] {e}")
 
     def read_data(self):
         print("开始读取数据")
@@ -80,7 +101,10 @@ class SerialReader(QObject):
                                         "status": status,
                                     }
                                     print(parsed)
-                                    data = f"({force}, {distance})"
+                                    data = f"({force * 9.8 / 1000}, {distance})"
+                                    with open("data.txt", "a") as f:
+                                        f.write(data + "\n")
+                                        
                                     # 无条件发送数据，确保data_display能接收到
                                     self.data_received.emit(data)
                                 else:

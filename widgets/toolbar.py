@@ -156,13 +156,13 @@ class ToolBarWidget(QToolBar):
         default_btn = QPushButton("默认")
         default_btn.clicked.connect(lambda: self.set_preset_range(2500, 10000, 0, 200))
         
-        small_btn = QPushButton("0-2000")
+        small_btn = QPushButton("0-200")
         small_btn.clicked.connect(lambda: self.set_preset_range(0, 2000, 0, 200))
         
-        medium_btn = QPushButton("0-5000")
+        medium_btn = QPushButton("200-500")
         medium_btn.clicked.connect(lambda: self.set_preset_range(0, 5000, 0, 200))
         
-        large_btn = QPushButton("0-10000")
+        large_btn = QPushButton("500-1000")
         large_btn.clicked.connect(lambda: self.set_preset_range(0, 10000, 0, 200))
         
         preset_layout.addWidget(default_btn)

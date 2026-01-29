@@ -280,7 +280,7 @@ def print_doc(now_handle_data_id=-1):
         # ActivePrinter="EPSON4D76BB (L4160 Series)"
         doc.Close(False)
         word.Quit()
-    # print_word_file(os.getcwd() + "/恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
+    print_word_file(os.getcwd() + "/恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
 
 
 
