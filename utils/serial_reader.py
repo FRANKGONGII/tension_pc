@@ -51,6 +51,7 @@ class SerialReader(QObject):
         """手动启动测试线程（仅在用户点击开始按钮时调用）"""
         if not self._test_thread_started:
             try:
+                # 测试条件下是test函数，正式条件下是read_data函数
                 self.thread = threading.Thread(target=self.test)
                 self.thread.daemon = True
                 self.thread.start()
