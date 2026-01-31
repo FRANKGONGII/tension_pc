@@ -44,3 +44,5 @@ ENV/
 output/
 resources/png.png
 resources/output.svg
+
+*.docx

@@ -88,11 +88,11 @@ def print_doc(now_handle_data_id=-1):
     # 获取第一个节（默认文档只有一个节）
     section = doc.sections[0]
 
-    # 设置页边距（单位：英寸）
-    section.top_margin = Inches(0.2)  # 上边距 1英寸
-    section.bottom_margin = Inches(0.5)  # 下边距 1英寸
-    section.left_margin = Inches(0.7)  # 左边距 1.25英寸
-    section.right_margin = Inches(0.7)  # 右边距 1.25英寸
+    # 设置页边距（单位：英寸），紧凑布局确保一页内
+    section.top_margin = Inches(0.3)
+    section.bottom_margin = Inches(0.3)
+    section.left_margin = Inches(0.6)
+    section.right_margin = Inches(0.6)
 
     footer = section.footer
     # 添加固定的页脚文本
@@ -127,16 +127,16 @@ def print_doc(now_handle_data_id=-1):
         return paragraph
 
     # 添加中文标题（大号宋体，加粗）
-    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=20, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=18, bold=True, style='Heading 1')
 
     # 添加英文公司名（正常宋体）
-    add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=16)
+    add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=14)
 
     # 添加主标题（大号宋体，加粗）
-    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=16, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=14, bold=True, style='Heading 1')
 
     # 添加英文副标题（正常宋体）
-    add_centered_text_with_simsun("Constant Hanger Performance Test Record", font_size=14)
+    add_centered_text_with_simsun("Constant Hanger Performance Test Record", font_size=12)
 
     # 添加基本信息表格
     table1 = doc.add_table(rows=3, cols=6)
@@ -185,12 +185,11 @@ def print_doc(now_handle_data_id=-1):
     cell = table.cell(0, 0)
     # 在单元格内添加图片
     paragraph = cell.paragraphs[0]  # 获取单元格内的段落
-    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6))  # 插入图片
-    # 方法1：设置段落居中（影响整个段落，包括图片）
+    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6))  # 图片约6英寸
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph_format = paragraph.paragraph_format
-    paragraph_format.space_before = Pt(10)
-    paragraph_format.space_after = Pt(5)
+    paragraph_format.space_before = Pt(4)
+    paragraph_format.space_after = Pt(4)
 
 
 
@@ -252,9 +251,10 @@ def print_doc(now_handle_data_id=-1):
     # 设置这个表格的左右边加粗
     set_table_border(main_table, left=True, right=True)
 
-    # 最后一个1行的表格，4个内容
+    # 最后一个1行的表格，4个内容（自动适应页面宽度与上方表格一致）
     bottom_table = doc.add_table(rows=1, cols=8)
     bottom_table.style = 'Table Grid'
+    # 不设置任何列宽，让表格完全自动适应页面宽度，与 main_table 一致
     bottom_table.cell(0, 0).text = "恒定度\nConstant rate"
     bottom_table.cell(0, 1).text = safe_str(detail[18]) if detail else ""
     bottom_table.cell(0, 2).text = "锁定位置\nLoad tolerance"

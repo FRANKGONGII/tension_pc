@@ -56,6 +56,13 @@ class TestViewWidget_1(QWidget):
     _previous_x_for_direction = None  # 用于检测x值变化趋势
     _x_change_threshold = 5.0  # x值变化阈值，调大到5.0，超过此值认为到达转折点
     _direction_switched = False  # 标记是否已经切换过方向，防止多次切换
+    # 基于工作位移的高亮点控制
+    _y_start_value = None  # 起始点的y值（位移起始点）
+    _y_max_value = None  # 最大y值（位移终止点）
+    _highlight_step = None  # 间隔值（工作位移/5）
+    _highlighted_displacements = set()  # 已打点的位移值集合，用于避免重复打点
+    _is_increasing_phase = True  # 当前是否在增加阶段（压的过程）
+    _previous_y = None  # 上一个y值，用于判断位移变化趋势
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -280,6 +287,7 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot = 0
             self._record_dot_x = []
             self._record_dot_y = []
+            self._hightlight_time = 0  # 重置标签左右判定，每轮从右5左5重新开始
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
@@ -287,6 +295,18 @@ class TestViewWidget_1(QWidget):
             self._label_direction = "right"  # 初始设为右侧
             self._previous_x_for_direction = None
             self._direction_switched = False  # 重置切换标记
+            # 初始化基于工作位移的高亮点控制变量
+            try:
+                working_displacement = float(self.input_manager.get_value("工作位移"))
+                self._highlight_step = working_displacement / 5.0  # 间隔 = 工作位移 / 5
+                self._y_start_value = None  # 将在第一个数据点记录
+                self._y_max_value = None  # 将在测试过程中更新
+                self._highlighted_displacements = set()  # 已打点的位移值集合
+                self._is_increasing_phase = True  # 初始为增加阶段（压的过程）
+                self._previous_y = None  # 上一个y值
+                print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}")
+            except (ValueError, TypeError):
+                self._highlight_step = None
             # 不清空表单中的拔销值显示
             # if "拔销值" in self.inputs:
             #     self.inputs["拔销值"].setText("")
@@ -457,8 +477,8 @@ class TestViewWidget_1(QWidget):
         # 正确应该是从工作位移的值出发
         total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
         self.inputs["总位移"].setText(f"{total_displacement:.2f}")
-        # 写入位移终止点值
-        end_value = self._record_dot_y[-1]
+        # 写入位移终止点值（取最大的y值，即最大位移值）
+        end_value = max(self._record_dot_y) if self._record_dot_y else 0
         self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
         # 写入位移起始点值
         start_value = self._record_dot_y[0]
@@ -490,6 +510,7 @@ class TestViewWidget_1(QWidget):
         )
         # 设置移动获取坐标
         self.plot_widget.getViewBox().invertY(True)
+        self.plot_widget.getViewBox().setMouseEnabled(x=False, y=False)  # 禁用拖拽平移，固定图表
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
         self.plot_widget.setXRange(x_center / 2, x_center * 2)
         # 将y轴范围设置为0-200
@@ -576,48 +597,80 @@ class TestViewWidget_1(QWidget):
         # 绘制数据点
         ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
         
-        # 绘制每隔10个点显示x值的点
-        highlighted_indices = range(0, len(self._record_dot_x), self._show_dot_duration)
-        highlighted_x = [self._record_dot_x[i] for i in highlighted_indices]
-        highlighted_y = [self._record_dot_y[i] for i in highlighted_indices]
+        # 在整个Y轴范围内均匀选择10个目标Y值，然后分配给左右各5个点
+        n = len(self._record_dot_x)
+        x_data, y_data = self._record_dot_x, self._record_dot_y
+        min_x_index = x_data.index(min(x_data)) if x_data else 0
+        
+        left_indices = [i for i in range(n) if i <= min_x_index]
+        right_indices = [i for i in range(n) if i > min_x_index]
+        
+        if n <= 10:
+            highlighted_indices = list(range(n))
+            left_selected = [i for i in highlighted_indices if i <= min_x_index]
+            right_selected = [i for i in highlighted_indices if i > min_x_index]
+        else:
+            # 在整个Y轴范围内均匀选择10个目标Y值
+            y_min, y_max = min(y_data), max(y_data)
+            if y_max - y_min < 1e-6:
+                y_targets = [y_min] * 10
+            else:
+                y_targets = [y_min + i * (y_max - y_min) / 9 for i in range(10)]
+            
+            # 交替分配：第1个左边，第2个右边，第3个左边，第4个右边...
+            left_selected = []
+            right_selected = []
+            used = set()
+            
+            for idx, y_t in enumerate(y_targets):
+                if idx % 2 == 0:
+                    # 偶数索引（0,2,4,6,8）：分配给左边，优先从左臂找
+                    left_cands = [i for i in left_indices if i not in used]
+                    right_cands = [i for i in right_indices if i not in used]
+                    all_cands = left_cands + right_cands  # 优先左臂
+                    if not all_cands:
+                        break
+                    best = min(all_cands, key=lambda i: abs(y_data[i] - y_t))
+                    left_selected.append(best)
+                    used.add(best)
+                else:
+                    # 奇数索引（1,3,5,7,9）：分配给右边，优先从右臂找
+                    left_cands = [i for i in left_indices if i not in used]
+                    right_cands = [i for i in right_indices if i not in used]
+                    all_cands = right_cands + left_cands  # 优先右臂
+                    if not all_cands:
+                        break
+                    best = min(all_cands, key=lambda i: abs(y_data[i] - y_t))
+                    right_selected.append(best)
+                    used.add(best)
+            
+            highlighted_indices = left_selected + right_selected
+        highlighted_x = [x_data[i] for i in highlighted_indices]
+        highlighted_y = [y_data[i] for i in highlighted_indices]
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
         
-        # 在每个高亮点旁边添加x值标签
+        x_offset = (self.current_x_max - self.current_x_min) * 0.06
+        y_offset = 200 * 0.01
+        
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
-            # 获取当前视图范围
-            view_range = self.plot_widget.getViewBox().viewRange()
-            x_range = view_range[0]
-            y_range = view_range[1]
-            
-            x_offset = (x_range[1] - x_range[0]) * 0.03  # 3%的x轴范围
-            y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
-            if i <= 4:
-                side = "right"
-            else:
-                side = "left"
-                
-            # 根据 side 参数决定标签左右
-            if side == "right":
-                label_x = x + x_offset
-            else:
+            # 前5个是左臂（放左侧），后5个是右臂（放右侧）
+            if i < len(left_selected):
                 label_x = x - x_offset
-            
+            else:
+                label_x = x + x_offset
             label_y = y - y_offset
-            
-            # 添加带背景框的文本，提高可读性
-            ax.text(label_x, label_y, f'{x:.3f}', fontsize=8, ha='center', va='top', 
-                   color='black', bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                   alpha=0.8, edgecolor='none'))
+            ax.text(label_x, label_y, f'{x:.3f}', fontsize=14, ha='center', va='top', color='black')
         
         # 绘制工作载荷的上下5%线
         base = int(self.input_manager.get_value("工作载荷"))
         ax.axvline(x=base * 1.05, color='red', linestyle='--', linewidth=1.5)
         ax.axvline(x=base * 0.95, color='green', linestyle='--', linewidth=1.5)
         
-        # 设置坐标轴标签和标题
-        ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=14)
-        ax.set_xlabel('载荷Load(N)', fontsize=12)
-        ax.set_ylabel('位移Travel(mm)', fontsize=12)
+        # 设置坐标轴标签和标题（增大字号确保打印可读）
+        ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=16)
+        ax.set_xlabel('载荷Load(N)', fontsize=14)
+        ax.set_ylabel('位移Travel(mm)', fontsize=14)
+        ax.tick_params(axis='both', labelsize=14)
         
         # 设置坐标轴范围
         ax.set_xlim(self.current_x_min, self.current_x_max)
@@ -712,20 +765,66 @@ class TestViewWidget_1(QWidget):
         
         print("get data:", x, y)
         self._cnt_receive_dot += 1
+        
+        # 记录起始点的y值（第一个点）
+        if self._y_start_value is None:
+            self._y_start_value = y
+            print(f"记录起始点y值: {self._y_start_value}")
+        
+        # 更新最大y值
+        if self._y_max_value is None or y > self._y_max_value:
+            self._y_max_value = y
+        
+        # 判断位移变化趋势（用于确定是压还是拉的过程）
+        if self._previous_y is not None:
+            if y > self._previous_y:
+                self._is_increasing_phase = True  # 位移增加，压的过程
+            elif y < self._previous_y:
+                self._is_increasing_phase = False  # 位移减少，拉的过程
+        self._previous_y = y
+        
+        # 基于工作位移的高亮点逻辑
+        if self._highlight_step is not None and self._y_start_value is not None:
+            should_highlight = False
+            highlight_side = "right"
+            target_displacement = None
+            
+            if self._is_increasing_phase:
+                # 压的过程：在起始点 + 间隔*1, 间隔*2, ..., 间隔*5 时打点
+                for i in range(1, 6):  # 1, 2, 3, 4, 5
+                    target = self._y_start_value + self._highlight_step * i
+                    # 检查是否已经达到或超过目标值，且之前没有打过这个点
+                    if target not in self._highlighted_displacements:
+                        # 检查当前y值是否达到或超过目标值（允许一定容差）
+                        if y >= target - 0.5:  # 允许0.5mm的容差
+                            should_highlight = True
+                            highlight_side = "right"
+                            target_displacement = target
+                            break
+            else:
+                # 拉的过程：从最大位移 - 间隔*1, 间隔*2, ..., 间隔*5 时打点
+                if self._y_max_value is not None:
+                    for i in range(1, 6):  # 1, 2, 3, 4, 5
+                        target = self._y_max_value - self._highlight_step * i
+                        # 检查是否已经达到或低于目标值，且之前没有打过这个点
+                        if target not in self._highlighted_displacements:
+                            # 检查当前y值是否达到或低于目标值（允许一定容差）
+                            if y <= target + 0.5:  # 允许0.5mm的容差
+                                should_highlight = True
+                                highlight_side = "left"
+                                target_displacement = target
+                                break
+            
+            if should_highlight and target_displacement is not None:
+                self._highlighted_displacements.add(target_displacement)
+                self._hightlight_time += 1
+                self.highlight_plot(x, y, highlight_side)
+                # 使用matplotlib保存高质量图片
+                self.save_high_res_chart(highlight_side)
+                print(f"高亮点 #{self._hightlight_time}: y={y:.2f}, 目标位移={target_displacement:.2f}, 侧={highlight_side}")
+        
         # 更新图表
         self.update_chart(self._record_dot_x, self._record_dot_y)
-        # TODO：按照位移y坐标间隔一定标记一个点
-        if self._cnt_receive_dot % self._show_dot_duration == 0:
-            self._hightlight_time += 1
-            if self._hightlight_time <= 5:
-                self.highlight_plot(x, y, "right")
-                # 使用matplotlib保存高质量图片
-                self.save_high_res_chart("right")
-            else:
-                self.highlight_plot(x, y, "left")
-                # 使用matplotlib保存高质量图片
-                self.save_high_res_chart("left")
-
         
         # 添加到记录列表
         self._record_dot_x.append(x)
