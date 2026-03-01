@@ -1,6 +1,6 @@
 from enum import auto
 
-from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox
+from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIntValidator
 from component.buttons import MenuButton,ChartButton1,ChartButton2
@@ -76,6 +76,21 @@ class ToolBarWidget(QToolBar):
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(callback)
             self.addWidget(btn)
+
+        # 互斥选中：仅算法1、算法2两个按钮，点击后高亮，点击另一按钮时原选中自动恢复原色
+        self._chart_button_group = QButtonGroup(self)
+        self._chart_button_group.setExclusive(True)
+        for btn in (self.chart_btn1, self.chart_btn2):
+            btn.setCheckable(True)
+            self._chart_button_group.addButton(btn)
+
+        # 仅选中态样式，不修改默认样式
+        self.setStyleSheet("""
+            QToolBar QPushButton:checked {
+                background-color: #2196F3;
+                color: white;
+            }
+        """)
 
     def on_retest(self):
         print("重新测试按钮点击")
