@@ -11,6 +11,7 @@ import pyqtgraph as pg
 from pyqtgraph import TextItem
 
 from utils.serial_reader import SerialReader
+from utils.config_manager import get_serial_port
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
@@ -152,9 +153,9 @@ class TestViewWidget_1(QWidget):
         self.btn_zero.clicked.connect(self.on_zero_clicked)
         self.btn_pin_pull.clicked.connect(self.on_pin_pull_clicked)
 
-        # 初始化串口监听
+        # 初始化串口监听（端口从配置读取，下次启动测试时生效）
         self.listening = True  # 状态变量：是否正在监听串口
-        self.serial_reader = SerialReader(port='COM7', baudrate=9600)
+        self.serial_reader = SerialReader(port=get_serial_port(), baudrate=9600)
         self.serial_reader.data_received.connect(self.handle_data)
 
 
@@ -318,15 +319,20 @@ class TestViewWidget_1(QWidget):
             # 初始化基于工作位移的高亮点控制变量
             try:
                 working_displacement = float(self.input_manager.get_value("工作位移"))
-                self._highlight_step = working_displacement / 5.0  # 间隔 = 工作位移 / 5
+                self._working_displacement = working_displacement
+                # 间隔 = 工作位移/10，高亮数量 = ceil(工作位移/间隔) ≈ 10，随工作位移缩放
+                self._highlight_step = working_displacement / 10.0
                 self._y_start_value = None  # 将在第一个数据点记录
                 self._y_max_value = None  # 将在测试过程中更新
                 self._highlighted_displacements = set()  # 已打点的位移值集合
                 self._is_increasing_phase = True  # 初始为增加阶段（压的过程）
                 self._previous_y = None  # 上一个y值
-                print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}")
+                self._max_highlight_count = max(10, int(working_displacement / self._highlight_step) + 2)  # 按实际工作位移决定数量上限
+                print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}, 最大高亮数≈{self._max_highlight_count}")
             except (ValueError, TypeError):
                 self._highlight_step = None
+                self._working_displacement = None
+                self._max_highlight_count = 10
             # 不清空表单中的拔销值显示
             # if "拔销值" in self.inputs:
             #     self.inputs["拔销值"].setText("")
@@ -600,31 +606,31 @@ class TestViewWidget_1(QWidget):
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
         # 添加坐标标签（基于U型曲线特性的智能位置选择）
-        label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0)) 
+        label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0))
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
     
     def save_high_res_chart(self, side: str):
         # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
-        print(side,"==========================")
+        print(side, "==========================")
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示
         plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
-        
+
         # 创建matplotlib图表
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
-        
+
         # 绘制数据点
         ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
-        
+
         # 在整个Y轴范围内均匀选择10个目标Y值，然后分配给左右各5个点
         n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
         min_x_index = x_data.index(min(x_data)) if x_data else 0
-        
+
         left_indices = [i for i in range(n) if i <= min_x_index]
         right_indices = [i for i in range(n) if i > min_x_index]
-        
+
         if n <= 10:
             highlighted_indices = list(range(n))
             left_selected = [i for i in highlighted_indices if i <= min_x_index]
@@ -636,12 +642,12 @@ class TestViewWidget_1(QWidget):
                 y_targets = [y_min] * 10
             else:
                 y_targets = [y_min + i * (y_max - y_min) / 9 for i in range(10)]
-            
+
             # 交替分配：第1个左边，第2个右边，第3个左边，第4个右边...
             left_selected = []
             right_selected = []
             used = set()
-            
+
             for idx, y_t in enumerate(y_targets):
                 if idx % 2 == 0:
                     # 偶数索引（0,2,4,6,8）：分配给左边，优先从左臂找
@@ -663,15 +669,15 @@ class TestViewWidget_1(QWidget):
                     best = min(all_cands, key=lambda i: abs(y_data[i] - y_t))
                     right_selected.append(best)
                     used.add(best)
-            
+
             highlighted_indices = left_selected + right_selected
         highlighted_x = [x_data[i] for i in highlighted_indices]
         highlighted_y = [y_data[i] for i in highlighted_indices]
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
-        
+
         x_offset = (self.current_x_max - self.current_x_min) * 0.06
         y_offset = 200 * 0.01
-        
+
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
             # 前5个是左臂（放左侧），后5个是右臂（放右侧）
             if i < len(left_selected):
@@ -810,30 +816,30 @@ class TestViewWidget_1(QWidget):
             target_displacement = None
             
             if self._is_increasing_phase:
-                # 压的过程：在起始点 + 间隔*1, 间隔*2, ..., 间隔*5 时打点
-                for i in range(1, 6):  # 1, 2, 3, 4, 5
+                # 压的过程：在起始点 + 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
+                for i in range(1, 6):
                     target = self._y_start_value + self._highlight_step * i
-                    # 检查是否已经达到或超过目标值，且之前没有打过这个点
                     if target not in self._highlighted_displacements:
-                        # 检查当前y值是否达到或超过目标值（允许一定容差）
                         if y >= target - 0.5:  # 允许0.5mm的容差
                             should_highlight = True
                             highlight_side = "right"
                             target_displacement = target
                             break
+                    if target > y + 1.0:  # 还未到达，后续目标更远，可提前退出
+                        break
             else:
-                # 拉的过程：从最大位移 - 间隔*1, 间隔*2, ..., 间隔*5 时打点
+                # 拉的过程：从最大位移 - 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
                 if self._y_max_value is not None:
-                    for i in range(1, 6):  # 1, 2, 3, 4, 5
+                    for i in range(1, 6):
                         target = self._y_max_value - self._highlight_step * i
-                        # 检查是否已经达到或低于目标值，且之前没有打过这个点
-                        if target not in self._highlighted_displacements:
-                            # 检查当前y值是否达到或低于目标值（允许一定容差）
+                        if -target not in self._highlighted_displacements:
                             if y <= target + 0.5:  # 允许0.5mm的容差
                                 should_highlight = True
                                 highlight_side = "left"
-                                target_displacement = target
+                                target_displacement = -target
                                 break
+                        if target < y - 1.0:  # 还未到达，后续目标更远，可提前退出
+                            break
             
             if should_highlight and target_displacement is not None:
                 self._highlighted_displacements.add(target_displacement)

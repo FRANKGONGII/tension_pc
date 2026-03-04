@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
     QApplication, QDialog, QMessageBox
 from PyQt5.QtCore import Qt
-from boto import connect_sns
+#from boto import connect_sns
 
 from widgets.dialog.ScaleAdjustDialog import ScaleAdjustDialog
+from widgets.dialog.ConfigDialog import ConfigDialog
 from widgets.header import HeaderWidget
 from widgets.data_display import DataDisplayWidget
 from widgets.footer import FooterWidget
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
         self.toolbar.print_btn.clicked.connect(self.handle_print_doc)
         self.toolbar.x_range_changed.connect(self.on_x_range_changed)
+        self.toolbar.menu_btn.config_clicked.connect(self.show_config_dialog)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -148,6 +150,10 @@ class MainWindow(QMainWindow):
     def history_visible(self):
         self.dock.setVisible(not self.dock.isVisible())
 
+    def show_config_dialog(self):
+        dialog = ConfigDialog(self)
+        dialog.exec_()
+
     def save_data(self):
         # 1. 重复入库检查
         if self.chart_widget1.is_data_saved():
@@ -180,6 +186,10 @@ class MainWindow(QMainWindow):
 
     def edit_data(self):
         x = self.chart_widget1._record_dot_x
+        y = self.chart_widget1._record_dot_y
+        if not x or not y:
+            QMessageBox.warning(self, "提示", "需要完成测试后才能进行数据编辑。")
+            return
         self.on_adjust_scale_clicked(points=x)
 
     def on_adjust_scale_clicked(self, points: []):

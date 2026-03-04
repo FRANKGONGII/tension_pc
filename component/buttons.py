@@ -17,8 +17,10 @@ class ChartButton2(QPushButton):
 # 菜单button
 class MenuButton(QPushButton):
     # 用于打印的信号量
-    print_doc_signal = pyqtSignal(int) 
-    
+    print_doc_signal = pyqtSignal(int)
+    # 点击配置选项时发射
+    config_clicked = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__("操作菜单", parent)
         self.setCursor(Qt.PointingHandCursor)
@@ -35,6 +37,9 @@ class MenuButton(QPushButton):
             ("打印", [
                 ("打印(M)", "Ctrl+P"),
                 ("打印预览(N)", "Ctrl+R")
+            ]),
+            ("配置", [
+                ("配置选项", None)
             ])
         ]
 
@@ -72,4 +77,6 @@ class MenuButton(QPushButton):
         if text == "打印(M)":
             print(os.getcwd())
             # 发射打印信号量
-            self.print_doc_signal.emit(self._now_handle_data_id) 
+            self.print_doc_signal.emit(self._now_handle_data_id)
+        elif text == "配置选项":
+            self.config_clicked.emit()

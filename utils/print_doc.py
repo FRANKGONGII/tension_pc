@@ -1,5 +1,6 @@
 import os
 
+from utils.config_manager import get_printer_name, get_print_save_dir_for_today
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
@@ -272,20 +273,22 @@ def print_doc(now_handle_data_id=-1):
     # 设置最后一个表格的下边和左右边加粗
     set_table_border(bottom_table, bottom=True, left=True, right=True)
 
-    # 保存 Word 文件
-    doc.save("恒力吊架性能试验记录-" + str(detail[4]) + ".docx")
+    # 保存 Word 文件（使用配置的根目录/年份/月份/）
+    save_dir = get_print_save_dir_for_today()
+    filename = "恒力吊架性能试验记录-" + str(detail[4]) + ".docx"
+    full_path = os.path.abspath(os.path.join(save_dir, filename))
+    doc.save(full_path)
 
     import win32com.client
 
-    def print_word_file(path):
+    def print_word_file(path, printer_name):
         word = win32com.client.Dispatch("Word.Application")
-        word.ActivePrinter = "Canon iP1188 series"
+        word.ActivePrinter = printer_name
         doc = word.Documents.Open(path)
         doc.PrintOut()  # 打印
-        # ActivePrinter="EPSON4D76BB (L4160 Series)"
         doc.Close(False)
         word.Quit()
-    print_word_file(os.getcwd() + "/恒力吊架性能试验记录-" + str(detail[4]) + ".docx")
+    print_word_file(full_path, get_printer_name())
 
 
 
