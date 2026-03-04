@@ -97,7 +97,21 @@ class MainWindow(QMainWindow):
 
     def handle_print_doc(self):
         from utils.print_doc import print_doc
-        print_doc(self.now_handle_data_id)
+        # 1. 无效记录检查
+        if self.now_handle_data_id <= 0:
+            QMessageBox.warning(self, "提示", "无法打印：请先入库后再打印。")
+            return
+        # 2. 测试数据（x、y）非空检查
+        x_list, y_list = DataManager.queryTestDataByFormId(self.now_handle_data_id)
+        if not x_list or not y_list:
+            QMessageBox.warning(self, "提示", "无法打印：该记录没有测试数据（x、y 坐标点为空），无法生成报表。")
+            return
+        try:
+            print_doc(self.now_handle_data_id)
+            # 3. 打印成功提示
+            QMessageBox.information(self, "提示", "打印成功！")
+        except Exception as e:
+            QMessageBox.warning(self, "提示", f"打印失败：{e}")
 
     def load_styles(self):
         """加载样式表"""

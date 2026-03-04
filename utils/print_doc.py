@@ -75,6 +75,12 @@ def print_doc(now_handle_data_id=-1):
     from utils.data_manager import DataManager
     detail = DataManager.queryById(now_handle_data_id)
     print(now_handle_data_id, detail)
+    # 双重防护：无效记录或测试数据为空时直接返回，避免崩溃
+    if detail is None:
+        return
+    x_list, y_list = DataManager.queryTestDataByFormId(now_handle_data_id)
+    if not x_list or not y_list:
+        return
 
     # 创建文档
     doc = Document()
@@ -193,8 +199,7 @@ def print_doc(now_handle_data_id=-1):
 
 
 
-    # 查询test_data用于Pmax/Pmin
-    x_list, y_list = DataManager.queryTestDataByFormId(now_handle_data_id)
+    # 使用前面已查询的 test_data 用于 Pmax/Pmin
     def format_float(val):
         try:
             return f"{float(val):.3f}"
