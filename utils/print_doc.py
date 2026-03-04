@@ -75,7 +75,7 @@ def print_doc(now_handle_data_id=-1):
     # 查询数据库获取数据
     from utils.data_manager import DataManager
     detail = DataManager.queryById(now_handle_data_id)
-    print(now_handle_data_id, detail)
+    # print(now_handle_data_id, detail)
     # 双重防护：无效记录或测试数据为空时直接返回，避免崩溃
     if detail is None:
         return

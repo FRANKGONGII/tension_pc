@@ -1,5 +1,6 @@
 import sqlite3
 from PO.input_data import inputManager
+from utils.system_logger import get_logger
 
 class DataManager:
     @staticmethod
@@ -47,12 +48,6 @@ class DataManager:
                 file_path TEXT
             )
         ''')
-        # 兼容已有库：若 file_path 列不存在则添加
-        try:
-            cursor.execute("ALTER TABLE test_detail ADD COLUMN file_path TEXT")
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在
 
         cursor.execute(
             '''
@@ -82,7 +77,7 @@ class DataManager:
     def save_detail(data: inputManager):
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
-        print("first get and save", data)
+        # print("first get and save", data)
 
         cursor.execute('''
             INSERT INTO test_detail (
@@ -133,7 +128,7 @@ class DataManager:
     def save_test_data(form_id: int, x_list: list, y_list: list):
         if len(x_list) != len(y_list):
             raise ValueError("x_list 和 y_list 长度不一致")
-        print(form_id)
+        # print(form_id)
 
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
@@ -183,7 +178,7 @@ class DataManager:
     @staticmethod
     def queryByYearAndFactoryNum(year, number):
         conn = sqlite3.connect("form_data.db")
-        print(number == None)
+        # print(number == None)
         cursor = conn.cursor()
         # 构建SQL(通过年份查找)
         sql = f'''

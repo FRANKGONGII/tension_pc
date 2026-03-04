@@ -4,6 +4,7 @@ from random import random
 
 import serial
 import threading
+from utils.system_logger import get_logger
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QPushButton
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -23,26 +24,28 @@ class SerialReader(QObject):
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程
         self._sending_data = True
-        print("开始发送数据")
+        # print("开始发送数据")
 
     def stop(self):
         # 只修改控制发送数据的变量，不停止线程
         self._sending_data = False
-        print("停止发送数据")
+        # print("停止发送数据")
 
     def stop_test_thread(self):
         """停止测试线程"""
         if self._test_thread_started:
-            print("正在停止测试线程...")
+            # print("正在停止测试线程...")
             self._running = False  # 设置停止标志
             
             # 等待线程结束
             if self.thread and self.thread.is_alive():
                 self.thread.join(timeout=2.0)  # 等待最多2秒
                 if self.thread.is_alive():
-                    print("警告: 测试线程未能正常停止")
+                    # pass
+                    get_logger().warning("测试线程未能正常停止")
                 else:
-                    print("测试线程已成功停止")
+                    # pass
+                    get_logger().info("测试线程已成功停止")
             
             self._test_thread_started = False
             self._running = True  # 重置运行标志，以便下次启动
@@ -56,13 +59,13 @@ class SerialReader(QObject):
                 self.thread.daemon = True
                 self.thread.start()
                 self._test_thread_started = True
-                print("测试线程已启动")
+                # print("测试线程已启动")
             except Exception as e:
-                print(f"启动测试线程时出错: {e}")
+                # print(f"启动测试线程时出错: {e}")
                 self.data_received.emit(f"[测试线程错误] {e}")
 
     def read_data(self):
-        print("开始读取数据")
+        # print("开始读取数据")
         buffer = ""
         while self._running:
             try:
@@ -101,7 +104,7 @@ class SerialReader(QObject):
                                         "force": force,
                                         "status": status,
                                     }
-                                    print(parsed)
+                                    # print(parsed)
                                     data = f"({force * 9.8 / 1000}, {distance})"
                                     with open("data.txt", "a") as f:
                                         f.write(data + "\n")
@@ -109,10 +112,11 @@ class SerialReader(QObject):
                                     # 无条件发送数据，确保data_display能接收到
                                     self.data_received.emit(data)
                                 else:
-                                    print("无效报文:", one_record)
+                                    # pass
+                                    get_logger().warning("无效报文: %s", one_record)
 
                             except Exception as e:
-                                print(f"解析错误: {e}, 报文={one_record}")
+                                # print(f"解析错误: {e}, 报文={one_record}")
                                 # 无条件发送错误信息，确保data_display能接收到
                                 self.data_received.emit(one_record)
             except Exception as e:
@@ -128,7 +132,7 @@ class SerialReader(QObject):
         from random import uniform
         y = 5500
         i = 0
-        print("开始测试模式，生成随机数据")
+        # print("开始测试模式，生成随机数据")
         while self._running:
             try:
                 if i <= 50:
@@ -142,7 +146,7 @@ class SerialReader(QObject):
                 x = int(x)
                 data = f"({x}, {y})"
                 # 无条件发送数据，确保data_display能接收到
-                print("send data:", data)
+                # print("send data:", data)
                 self.data_received.emit(data)
                     
                 i += 1
@@ -151,7 +155,7 @@ class SerialReader(QObject):
                     
                 time.sleep(0.2)
             except Exception as e:
-                print(f"测试模式错误: {e}")
+                # print(f"测试模式错误: {e}")
                 # 只有当_sending_data为True时才发送错误信息
                 if self._sending_data:
                     self.data_received.emit(f"[测试错误] {e}")

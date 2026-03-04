@@ -90,12 +90,8 @@ class ToolBarWidget(QToolBar):
         """)
 
     def on_edit(self):
-        print("编辑按钮点击")
+        # print("编辑按钮点击")
         self.edit_visible.emit()
-
-
-    def on_save(self):
-        print("入库按钮点击")
         
     def on_print(self):
         # 发射打印信号量
@@ -103,7 +99,7 @@ class ToolBarWidget(QToolBar):
 
 
     def on_get_history(self):
-        print("查询历史按钮点击")
+        # print("查询历史按钮点击")
         self.history_visible.emit()
 
     def on_help(self):
@@ -224,7 +220,7 @@ class ToolBarWidget(QToolBar):
             # 更新按钮文本以显示当前范围
             self.axis_range_button.setText(f"坐标轴: X({x_min}-{x_max}), Y({y_min}-{y_max})")
             
-            print(f"坐标轴范围已更改为: X({x_min}-{x_max}), Y({y_min}-{y_max})")
+            # print(f"坐标轴范围已更改为: X({x_min}-{x_max}), Y({y_min}-{y_max})")
             
             # 关闭对话框
             dialog.accept()

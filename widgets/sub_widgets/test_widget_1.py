@@ -235,7 +235,7 @@ class TestViewWidget_1(QWidget):
                 widget.currentTextChanged.connect(lambda val, k=key: self.on_input_changed(k, val))
 
     def on_input_changed(self, key, value):
-        print(f"{key} changed: {value}")
+        # print(f"{key} changed: {value}")
         self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
@@ -297,7 +297,7 @@ class TestViewWidget_1(QWidget):
                 return
             
             # 逻辑处理
-            print("开始按钮被点击")
+            # print("开始按钮被点击")
             self.btn1.setEnabled(False)
             self.btn2.setEnabled(True)
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -328,7 +328,7 @@ class TestViewWidget_1(QWidget):
                 self._is_increasing_phase = True  # 初始为增加阶段（压的过程）
                 self._previous_y = None  # 上一个y值
                 self._max_highlight_count = max(10, int(working_displacement / self._highlight_step) + 2)  # 按实际工作位移决定数量上限
-                print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}, 最大高亮数≈{self._max_highlight_count}")
+                # print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}, 最大高亮数≈{self._max_highlight_count}")
             except (ValueError, TypeError):
                 self._highlight_step = None
                 self._working_displacement = None
@@ -342,7 +342,7 @@ class TestViewWidget_1(QWidget):
                 self.restart = False
             # 插入边界线
             base = int(self.input_manager.get_value("工作载荷"))
-            print("载荷", base)
+            # print("载荷", base)
             line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
             self.inputs["恒定度"].setText("")
@@ -367,7 +367,7 @@ class TestViewWidget_1(QWidget):
             # DEBUG：初始值先给个100
             # self._x_initial = self._latest_x_value
             self._x_initial = 100
-            print(f"记录x初始值: {self._x_initial}")
+            # print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial}")
         else:
             QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
@@ -382,7 +382,7 @@ class TestViewWidget_1(QWidget):
             # 在左侧表单中显示拔销值
             if "拔销值" in self.inputs:
                 self.inputs["拔销值"].setText(f"{self._pin_pull_value:.3f}")
-            print(f"记录拔销值: {self._pin_pull_value}")
+            # print(f"记录拔销值: {self._pin_pull_value}")
             QMessageBox.information(self, "提示", f"已记录拔销值: {self._pin_pull_value:.3f}")
         else:
             QMessageBox.warning(self, "警告", "暂无数据可记录拔销值")
@@ -391,7 +391,7 @@ class TestViewWidget_1(QWidget):
         if self.btn2.isEnabled():
             self.restart = True
             # 逻辑处理
-            print("结束按钮被点击")
+            # print("结束按钮被点击")
             self.btn2.setEnabled(False)
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start
@@ -594,7 +594,7 @@ class TestViewWidget_1(QWidget):
         y_range = view_range[1]
         x_offset = (x_range[1] - x_range[0]) * 0.03  # 3%的x轴范围
         y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
-        print(x, y, side)
+        # print(x, y, side)
         # 根据 side 参数决定标签左右
         if side == "right":
             label_x = x + x_offset
@@ -612,7 +612,7 @@ class TestViewWidget_1(QWidget):
     
     def save_high_res_chart(self, side: str):
         # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
-        print(side, "==========================")
+        # print(side, "==========================")
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示
         plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
@@ -721,7 +721,7 @@ class TestViewWidget_1(QWidget):
         self.current_x_max = x_max
         if hasattr(self, 'plot_widget'):
             self.plot_widget.setXRange(x_min, x_max)
-            print(f"已设置x轴范围: {x_min}-{x_max}")
+            # print(f"已设置x轴范围: {x_min}-{x_max}")
 
 
     def on_mouse_moved(self, evt):
@@ -754,16 +754,16 @@ class TestViewWidget_1(QWidget):
         # 时刻记录最新的x值，独立于_record_dot_x结构
         self._latest_x_value = x
         
-        print(self.adjust_center, self.adjust_number)
+        # print(self.adjust_center, self.adjust_number)
         if self.adjust_center != -1:
-            print("will adjust number")
+            # print("will adjust number")
             if x < self.adjust_center:
                 x = x * (1 + self.adjust_number)
             else:
                 x = x * (1 - self.adjust_number)
         
         # 实现x轴去0逻辑：如果已经记录了初始值，则减去该值
-        print("init", self._latest_x_value)
+        # print("init", self._latest_x_value)
         if self._x_initial is not None:
             x = x - self._x_initial
             # 确保x值不为负
@@ -776,7 +776,7 @@ class TestViewWidget_1(QWidget):
             # 计算偏移量，使第一个点显示在100的位置
             self._y_start = y - 100
             self._has_recorded_start = True
-            print(f"设置偏移量: {self._y_start}，使第一个点显示在100的位置")
+            # print(f"设置偏移量: {self._y_start}，使第一个点显示在100的位置")
             # 第一个点直接设置为100
             y = 100
         elif self._has_recorded_start:
@@ -789,13 +789,13 @@ class TestViewWidget_1(QWidget):
         if self.serial_reader._sending_data == False:
             return
         
-        print("get data:", x, y)
+        # print("get data:", x, y)
         self._cnt_receive_dot += 1
         
         # 记录起始点的y值（第一个点）
         if self._y_start_value is None:
             self._y_start_value = y
-            print(f"记录起始点y值: {self._y_start_value}")
+            # print(f"记录起始点y值: {self._y_start_value}")
         
         # 更新最大y值
         if self._y_max_value is None or y > self._y_max_value:
@@ -847,7 +847,7 @@ class TestViewWidget_1(QWidget):
                 self.highlight_plot(x, y, highlight_side)
                 # 使用matplotlib保存高质量图片
                 self.save_high_res_chart(highlight_side)
-                print(f"高亮点 #{self._hightlight_time}: y={y:.2f}, 目标位移={target_displacement:.2f}, 侧={highlight_side}")
+                # print(f"高亮点 #{self._hightlight_time}: y={y:.2f}, 目标位移={target_displacement:.2f}, 侧={highlight_side}")
         
         # 更新图表
         self.update_chart(self._record_dot_x, self._record_dot_y)

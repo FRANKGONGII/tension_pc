@@ -96,7 +96,7 @@ class SearchHistoryWidget(QWidget):
                             from PyQt5.QtWidgets import QMessageBox
                             QMessageBox.warning(self, "提示", "文件所在目录不存在。")
                     except Exception as e:
-                        print(f"无法打开目录: {e}")
+                        # print(f"无法打开目录: {e}")
                         from PyQt5.QtWidgets import QMessageBox
                         QMessageBox.warning(self, "提示", f"无法打开目录：{e}")
 
@@ -154,7 +154,7 @@ class SearchHistoryWidget(QWidget):
         else:
             result = DataManager.queryByYear(year)
 
-        print(result, year, keyword)
+        # print(result, year, keyword)
         # 返回 [试验日期, 用户, 出厂编号, id, file_path]
         return [
             [row[1], row[2], row[4], row[0], row[22] if len(row) > 22 else None]
@@ -233,7 +233,7 @@ class SearchHistoryWidget(QWidget):
                     if hasattr(test_widget, 'rewrite_chart'):
                         test_widget.rewrite_chart(x_list, y_list)
             except Exception as e:
-                print(f"导入数据时出错: {e}")
+                # print(f"导入数据时出错: {e}")
                 from PyQt5.QtWidgets import QMessageBox
                 QMessageBox.warning(self, "导入失败", f"导入数据时出错: {str(e)}")
                 

@@ -127,7 +127,7 @@ class TestViewWidget_2(QWidget):
     def on_start_clicked(self):
         if self.btn1.isEnabled():
             # 逻辑处理
-            print("开始按钮被点击")
+            # print("开始按钮被点击")
             self.btn1.setEnabled(False)
             self.btn2.setEnabled(True)
 
@@ -135,7 +135,7 @@ class TestViewWidget_2(QWidget):
     def on_end_clicked(self):
         if self.btn2.isEnabled():
             # 逻辑处理
-            print("结束按钮被点击")
+            # print("结束按钮被点击")
             self.btn2.setEnabled(False)
             self.btn1.setEnabled(True)
             # 后续如需重新开始，也可以再启用 start

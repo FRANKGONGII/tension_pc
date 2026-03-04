@@ -73,9 +73,9 @@ class MenuButton(QPushButton):
 
 
     def _on_menu_clicked(self, text):
-        print(f"菜单项被点击: {text}")
+        # print(f"菜单项被点击: {text}")
         if text == "打印(M)":
-            print(os.getcwd())
+            # print(os.getcwd())
             # 发射打印信号量
             self.print_doc_signal.emit(self._now_handle_data_id)
         elif text == "配置选项":

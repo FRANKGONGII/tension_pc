@@ -13,6 +13,7 @@ from widgets.sub_widgets.test_widget_2 import TestViewWidget_2
 from widgets.sub_widgets.search_history_widget import SearchHistoryWidget
 from widgets.toolbar import ToolBarWidget
 from utils.data_manager import DataManager
+from utils.system_logger import get_logger
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -122,7 +123,9 @@ class MainWindow(QMainWindow):
             with open('resources/styles.qss', 'r', encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
-            print("未找到样式表文件")
+            # print("未找到样式表文件")
+            # pass
+            get_logger().warning("未找到样式表文件")
 
     def create_chart(self):
         fig = Figure(figsize=(4, 3))
@@ -146,7 +149,8 @@ class MainWindow(QMainWindow):
             self.chart_widget1.set_x_range(x_min, x_max)
         elif self.stack.currentIndex() == 2:
             # 如果TestViewWidget_2也需要支持x轴范围调整，可以在这里添加
-            pass
+            # pass
+            get_logger().debug("TestViewWidget_2暂不支持x轴范围调整")
 
     def history_visible(self):
         self.dock.setVisible(not self.dock.isVisible())
@@ -176,7 +180,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "无法入库：x、y 坐标点不能为空或包含无效值。")
             return
 
-        print("get data", data)
+        # print("get data", data)
         last_id = DataManager.save_detail(data[0])
         self.now_handle_data_id = last_id
         DataManager.save_test_data(last_id, x_list, y_list)
