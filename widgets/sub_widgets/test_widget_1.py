@@ -63,6 +63,7 @@ class TestViewWidget_1(QWidget):
     _highlighted_displacements = set()  # 已打点的位移值集合，用于避免重复打点
     _is_increasing_phase = True  # 当前是否在增加阶段（压的过程）
     _previous_y = None  # 上一个y值，用于判断位移变化趋势
+    _has_saved = False  # 当前测试数据是否已入库，用于防止重复入库
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -239,6 +240,14 @@ class TestViewWidget_1(QWidget):
     def get_all_data(self):
         return self.input_manager, self._record_dot_x, self._record_dot_y
 
+    def is_data_saved(self):
+        """当前测试数据是否已入库（用于防止重复入库）"""
+        return self._has_saved
+
+    def mark_as_saved(self):
+        """标记当前数据已入库"""
+        self._has_saved = True
+
     def change_retest_visible(self):
         if self.show_buttons:
             self.btn1.setVisible(False)
@@ -297,6 +306,7 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot = 0
             self._record_dot_x = []
             self._record_dot_y = []
+            self._has_saved = False  # 新测试开始，重置入库标记
             self._hightlight_time = 0  # 重置标签左右判定，每轮从右5左5重新开始
             # 重置去0逻辑相关变量
             self._y_start = None

@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
-    QApplication, QDialog
+    QApplication, QDialog, QMessageBox
 from PyQt5.QtCore import Qt
 from boto import connect_sns
 
@@ -135,11 +135,34 @@ class MainWindow(QMainWindow):
         self.dock.setVisible(not self.dock.isVisible())
 
     def save_data(self):
+        # 1. 重复入库检查
+        if self.chart_widget1.is_data_saved():
+            QMessageBox.warning(self, "提示", "当前测试数据已入库，请勿重复入库。\n如需保存新数据，请先点击「开始」进行新一轮测试。")
+            return
+
         data = self.chart_widget1.get_all_data()
+        x_list, y_list = data[1], data[2]
+
+        # 2. 数据检查：x、y 坐标点不能为空
+        if not x_list or not y_list:
+            QMessageBox.warning(self, "提示", "无法入库：测试数据为空。\n请先进行测试（点击「开始」并完成数据采集）后再入库。")
+            return
+        if len(x_list) != len(y_list) or len(x_list) == 0:
+            QMessageBox.warning(self, "提示", "无法入库：x、y 坐标点数据异常，请检查测试数据。")
+            return
+        # 检查是否存在空值或无效值
+        if any(v is None for v in x_list) or any(v is None for v in y_list):
+            QMessageBox.warning(self, "提示", "无法入库：x、y 坐标点不能为空或包含无效值。")
+            return
+
         print("get data", data)
         last_id = DataManager.save_detail(data[0])
         self.now_handle_data_id = last_id
-        DataManager.save_test_data(last_id, data[1], data[2])
+        DataManager.save_test_data(last_id, x_list, y_list)
+        self.chart_widget1.mark_as_saved()
+
+        # 3. 入库成功提示
+        QMessageBox.information(self, "提示", "入库成功！")
 
     def edit_data(self):
         x = self.chart_widget1._record_dot_x
