@@ -275,9 +275,15 @@ def print_doc(now_handle_data_id=-1):
 
     # 保存 Word 文件（使用配置的根目录/年份/月份/）
     save_dir = get_print_save_dir_for_today()
-    filename = "恒力吊架性能试验记录-" + str(detail[4]) + ".docx"
+    # 出厂编号+测试时间，避免同出厂编号多次测试时文件名冲突
+    test_time_safe = (str(detail[1]) if detail[1] else "").replace(":", "-").replace(" ", "_").replace("/", "-")
+    time_suffix = f"-{test_time_safe}" if test_time_safe else ""
+    filename = f"恒力吊架性能试验记录-{detail[4]}{time_suffix}.docx"
     full_path = os.path.abspath(os.path.join(save_dir, filename))
     doc.save(full_path)
+
+    # 将文件完整路径写入数据库
+    DataManager.update_file_path(now_handle_data_id, full_path)
 
     import win32com.client
 

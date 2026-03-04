@@ -1,10 +1,10 @@
+from datetime import datetime
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QComboBox, QCheckBox, QLineEdit, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QHBoxLayout, QPushButton, QDockWidget,
     QHeaderView
 )
 from PyQt5.QtCore import Qt
-from sympy.strategies.core import switch
 from utils import data_manager
 from utils.data_manager import DataManager
 
@@ -23,11 +23,15 @@ class SearchHistoryWidget(QWidget):
         row1.addWidget(self.query_mode)
         layout.addLayout(row1)
 
-        # 查询年份
+        # 查询年份（默认当前年份）
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("查询年份："))
         self.year_box = QComboBox()
-        self.year_box.addItems([str(y) for y in range(2025, 2031)])
+        current_year = datetime.now().year
+        years = [str(y) for y in range(current_year - 2, current_year + 6)]
+        self.year_box.addItems(years)
+        idx = years.index(str(current_year))
+        self.year_box.setCurrentIndex(idx)
         row2.addWidget(self.year_box)
         layout.addLayout(row2)
 
@@ -71,7 +75,7 @@ class SearchHistoryWidget(QWidget):
         self.main_window = None
 
     def handle_cell_click(self, row, column):
-        """处理单元格点击事件，若点击的是文件链接列，则尝试打开文件"""
+        """处理单元格点击事件，若点击的是文件链接列，则打开文件所在目录"""
         if column == 3:  # 文件链接列
             item = self.table.item(row, column)
             if item is not None:
@@ -80,15 +84,21 @@ class SearchHistoryWidget(QWidget):
                     import os
                     import sys
                     try:
-                        if sys.platform.startswith('win'):
-                            os.startfile(file_path)
+                        dir_path = os.path.dirname(file_path)
+                        if os.path.isdir(dir_path):
+                            if sys.platform.startswith('win'):
+                                os.startfile(dir_path)
+                            else:
+                                import subprocess
+                                opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
+                                subprocess.call([opener, dir_path])
                         else:
-                            # 非Windows系统的打开方式
-                            import subprocess
-                            opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
-                            subprocess.call([opener, file_path])
+                            from PyQt5.QtWidgets import QMessageBox
+                            QMessageBox.warning(self, "提示", "文件所在目录不存在。")
                     except Exception as e:
-                        print(f"无法打开文件: {e}")
+                        print(f"无法打开目录: {e}")
+                        from PyQt5.QtWidgets import QMessageBox
+                        QMessageBox.warning(self, "提示", f"无法打开目录：{e}")
 
 
     def handle_search(self):
@@ -105,25 +115,21 @@ class SearchHistoryWidget(QWidget):
             row_index = self.table.rowCount()
             self.table.insertRow(row_index)
             
-            # 添加基本信息列
-            for col_index, value in enumerate(row_data):
-                if col_index < 3:  # 前3列是基本信息
-                    self.table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
+            # 添加基本信息列（试验日期、用户、出厂编号）
+            for col_index, value in enumerate(row_data[:3]):
+                self.table.setItem(row_index, col_index, QTableWidgetItem(str(value) if value else ""))
             
-            # 添加文件链接列
-            if len(row_data) > 3 and row_data[3]:  # 确保有ID信息
-                file_id = str(row_data[3])
-                file_name = f"恒力吊架性能试验记录{file_id}.docx"
-                
-                # 创建链接项
-                link_item = QTableWidgetItem("查看文件")
+            # 添加文件链接列：使用数据库中的 file_path，点击打开文件所在目录
+            file_path = row_data[4] if len(row_data) > 4 else None
+            link_item = QTableWidgetItem("打开目录" if file_path else "未生成")
+            link_item.setTextAlignment(Qt.AlignCenter)
+            if file_path:
                 link_item.setForeground(Qt.blue)
-                link_item.setTextAlignment(Qt.AlignCenter)
-                # 设置文件路径为用户数据，用于点击时打开
-                file_path = f"d:/tension_pc/{file_name}"
                 link_item.setData(Qt.UserRole, file_path)
-                
-                self.table.setItem(row_index, 3, link_item)
+            else:
+                link_item.setForeground(Qt.gray)
+                link_item.setData(Qt.UserRole, None)
+            self.table.setItem(row_index, 3, link_item)
             
             # 添加导入按钮列
             import_btn = QPushButton("导入")
@@ -149,8 +155,11 @@ class SearchHistoryWidget(QWidget):
             result = DataManager.queryByYear(year)
 
         print(result, year, keyword)
-        # 返回包含ID的结果，用于创建文件链接
-        return [ [row[1], row[2], row[4], row[0]] for row in result ]  # row[0] 是数据库ID
+        # 返回 [试验日期, 用户, 出厂编号, id, file_path]
+        return [
+            [row[1], row[2], row[4], row[0], row[22] if len(row) > 22 else None]
+            for row in result
+        ]
         
     def on_import_clicked(self):
         """处理导入按钮点击事件"""

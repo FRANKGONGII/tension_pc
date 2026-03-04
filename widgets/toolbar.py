@@ -35,7 +35,7 @@ class ToolBarWidget(QToolBar):
         # 创建功能按钮
         buttons = [
             ("查询历史", self.on_get_history),
-            ("关于", self.on_about)
+            ("帮助", self.on_help)
         ]
         
         # 创建坐标轴范围设置按钮，点击弹出对话框
@@ -51,6 +51,7 @@ class ToolBarWidget(QToolBar):
         self.addWidget(self.chart_btn1)
 
         self.chart_btn2 = ChartButton2()
+        self.chart_btn2.setEnabled(False)  # 暂时禁用
         self.chart_btn2.clicked.connect(self.switch_chart_2.emit)
         self.addWidget(self.chart_btn2)
 
@@ -105,8 +106,10 @@ class ToolBarWidget(QToolBar):
         print("查询历史按钮点击")
         self.history_visible.emit()
 
-    def on_about(self):
-        print("关于按钮点击")
+    def on_help(self):
+        from widgets.dialog.HelpDialog import HelpDialog
+        dialog = HelpDialog(self)
+        dialog.exec_()
     
     def show_axis_range_dialog(self):
         """显示坐标轴范围设置对话框"""

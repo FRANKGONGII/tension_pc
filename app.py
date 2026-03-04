@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
     QApplication, QDialog, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 #from boto import connect_sns
 
 from widgets.dialog.ScaleAdjustDialog import ScaleAdjustDialog
@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self.toolbar.save_btn.clicked.connect(self.save_data)
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
         self.toolbar.print_btn.clicked.connect(self.handle_print_doc)
+        self.toolbar.menu_btn.print_doc_signal.connect(lambda _: self.handle_print_doc())  # 菜单打印与工具栏打印同功能
         self.toolbar.x_range_changed.connect(self.on_x_range_changed)
         self.toolbar.menu_btn.config_clicked.connect(self.show_config_dialog)
 

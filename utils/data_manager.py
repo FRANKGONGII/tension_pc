@@ -43,9 +43,16 @@ class DataManager:
                 恒定度 TEXT,
                 锁定位置 TEXT,
                 载荷偏差度 TEXT,
-                测试结果 TEXT
+                测试结果 TEXT,
+                file_path TEXT
             )
         ''')
+        # 兼容已有库：若 file_path 列不存在则添加
+        try:
+            cursor.execute("ALTER TABLE test_detail ADD COLUMN file_path TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # 列已存在
 
         cursor.execute(
             '''
@@ -112,6 +119,15 @@ class DataManager:
         conn.commit()
         conn.close()
         return cursor.lastrowid
+
+    @staticmethod
+    def update_file_path(form_id: int, file_path: str):
+        """更新记录的打印文件完整路径"""
+        conn = sqlite3.connect("form_data.db")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE test_detail SET file_path = ? WHERE id = ?", (file_path, form_id))
+        conn.commit()
+        conn.close()
 
     @staticmethod
     def save_test_data(form_id: int, x_list: list, y_list: list):
@@ -181,7 +197,6 @@ class DataManager:
         results = cursor.fetchall()
         conn.close()
         return results
-
 
 
 

@@ -13,7 +13,7 @@ class ConfigDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("系统配置")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(840)
         self._init_ui()
         self._load_values()
 
