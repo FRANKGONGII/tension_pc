@@ -70,11 +70,10 @@ class MainWindow(QMainWindow):
         self.toolbar = ToolBarWidget()
         self.toolbar.switch_chart_1.connect(self.switch_chart_1)
         self.toolbar.switch_chart_2.connect(self.switch_chart_2)
-        self.toolbar.change_visible.connect(self.change_visible)
         self.toolbar.history_visible.connect(self.history_visible)
         self.toolbar.save_btn.clicked.connect(self.save_data)
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
-        self.toolbar.menu_btn.print_doc_signal.connect(self.handle_print_doc)
+        self.toolbar.print_btn.clicked.connect(self.handle_print_doc)
         self.toolbar.x_range_changed.connect(self.on_x_range_changed)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
@@ -118,6 +117,7 @@ class MainWindow(QMainWindow):
 
     def switch_chart_1(self):
         self.stack.setCurrentIndex(1)
+        self.chart_widget1.change_retest_visible()
 
     def switch_chart_2(self):
         self.stack.setCurrentIndex(2)
@@ -130,10 +130,6 @@ class MainWindow(QMainWindow):
         elif self.stack.currentIndex() == 2:
             # 如果TestViewWidget_2也需要支持x轴范围调整，可以在这里添加
             pass
-
-    def change_visible(self):
-        self.chart_widget1.change_retest_visible()
-        self.chart_widget2.change_retest_visible()
 
     def history_visible(self):
         self.dock.setVisible(not self.dock.isVisible())

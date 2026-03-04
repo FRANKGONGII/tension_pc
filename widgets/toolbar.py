@@ -15,11 +15,12 @@ class ToolBarWidget(QToolBar):
 
     switch_chart_1 = pyqtSignal()  # 切换信号（供主界面使用）
     switch_chart_2 = pyqtSignal()
-    change_visible = pyqtSignal()
     history_visible = pyqtSignal()
     edit_visible = pyqtSignal()
     x_range_changed = pyqtSignal(int, int)
     y_range_changed = pyqtSignal(int, int)
+    # 用于打印的信号量
+    print_doc_signal = pyqtSignal(int) 
 
     status = TestStatus.no_test
 
@@ -33,7 +34,6 @@ class ToolBarWidget(QToolBar):
     def init_ui(self):
         # 创建功能按钮
         buttons = [
-            ("重新测试", self.on_retest),
             ("查询历史", self.on_get_history),
             ("关于", self.on_about)
         ]
@@ -59,19 +59,15 @@ class ToolBarWidget(QToolBar):
 
         self.edit_btn = QPushButton("数据编辑")
         self.addWidget(self.edit_btn)
-
-
-        # 首先添加重新测试按钮
-        btn_retest = QPushButton(buttons[0][0])
-        btn_retest.setCursor(Qt.PointingHandCursor)
-        btn_retest.clicked.connect(buttons[0][1])
-        self.addWidget(btn_retest)
         
+        self.print_btn = QPushButton("打印")
+        self.addWidget(self.print_btn)
+
         # 添加坐标轴范围设置按钮
         self.addWidget(self.axis_range_button)
         
-        # 添加剩余的按钮
-        for text, callback in buttons[1:]:
+        # 添加功能按钮
+        for text, callback in buttons:
             btn = QPushButton(text)
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(callback)
@@ -92,11 +88,6 @@ class ToolBarWidget(QToolBar):
             }
         """)
 
-    def on_retest(self):
-        print("重新测试按钮点击")
-        self.change_visible.emit()
-
-
     def on_edit(self):
         print("编辑按钮点击")
         self.edit_visible.emit()
@@ -104,6 +95,10 @@ class ToolBarWidget(QToolBar):
 
     def on_save(self):
         print("入库按钮点击")
+        
+    def on_print(self):
+        # 发射打印信号量
+        self.print_doc_signal.emit(self._now_handle_data_id) 
 
 
     def on_get_history(self):

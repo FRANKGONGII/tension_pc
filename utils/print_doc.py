@@ -268,7 +268,7 @@ def print_doc(now_handle_data_id=-1):
     set_table_border(bottom_table, bottom=True, left=True, right=True)
 
     # 保存 Word 文件
-    doc.save("恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
+    doc.save("恒力吊架性能试验记录-" + str(detail[4]) + ".docx")
 
     import win32com.client
 
@@ -280,7 +280,7 @@ def print_doc(now_handle_data_id=-1):
         # ActivePrinter="EPSON4D76BB (L4160 Series)"
         doc.Close(False)
         word.Quit()
-    print_word_file(os.getcwd() + "/恒力吊架性能试验记录" + str(now_handle_data_id) + ".docx")
+    print_word_file(os.getcwd() + "/恒力吊架性能试验记录-" + str(detail[4]) + ".docx")
 
 
 

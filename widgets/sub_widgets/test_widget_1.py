@@ -85,11 +85,11 @@ class TestViewWidget_1(QWidget):
         main_layout.addLayout(left_panel, 2)
         main_layout.addWidget(right_panel, 5)
 
-        bottom_panel = self.create_bottom_grid()
+        # bottom_panel = self.create_bottom_grid()
 
         layout = QVBoxLayout()
         layout.addLayout(main_layout)
-        layout.addLayout(bottom_panel)
+        # layout.addLayout(bottom_panel)
 
         self.setLayout(layout)
         
@@ -274,6 +274,16 @@ class TestViewWidget_1(QWidget):
                     return
             except (ValueError, TypeError):
                 QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
+                return
+                        # 检查是否已输入工作位移
+            try:
+                displacement_value = self.input_manager.get_value("出厂编号")
+                # 确保工作位移不为空且是有效的数字，并且大于0
+                if not displacement_value or float(displacement_value) <= 0:
+                    QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
+                    return
+            except (ValueError, TypeError):
+                QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
                 return
             
             # 逻辑处理
@@ -707,20 +717,20 @@ class TestViewWidget_1(QWidget):
             self.mouse_data_changed.emit([x, y])  # 发射信号
 
 
-    def create_bottom_grid(self):
-        grid_layout = QGridLayout()
-        font = QFont()
-        font.setPointSize(11)
+    # def create_bottom_grid(self):
+    #     grid_layout = QGridLayout()
+    #     font = QFont()
+    #     font.setPointSize(11)
 
-        labels = ["力(N)"] + [str(i) for i in range(1, 13)] + ["Pmax", "Pmin"]
-        for col, text in enumerate(labels):
-            label = QLabel(text)
-            label.setFont(font)
-            label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("background-color: lightgray; border: 1px solid gray;")
-            grid_layout.addWidget(label, 0, col)
+    #     labels = ["力(N)"] + [str(i) for i in range(1, 13)] + ["Pmax", "Pmin"]
+    #     for col, text in enumerate(labels):
+    #         label = QLabel(text)
+    #         label.setFont(font)
+    #         label.setAlignment(Qt.AlignCenter)
+    #         label.setStyleSheet("background-color: lightgray; border: 1px solid gray;")
+    #         grid_layout.addWidget(label, 0, col)
 
-        return grid_layout
+    #     return grid_layout
 
 
     def handle_data(self, data):
