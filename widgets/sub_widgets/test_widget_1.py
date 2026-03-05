@@ -312,6 +312,7 @@ class TestViewWidget_1(QWidget):
             self._label_direction = "right"  # 初始设为右侧
             self._previous_x_for_direction = None
             self._direction_switched = False  # 重置切换标记
+            self._existing_file_path = None
             # 初始化基于工作位移的高亮点控制变量
             try:
                 working_displacement = float(self.input_manager.get_value("工作位移"))
