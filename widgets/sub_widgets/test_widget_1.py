@@ -54,14 +54,13 @@ class TestViewWidget_1(QWidget):
     _latest_x_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_y_value = None
-    # 记录hight了几次
-    _hightlight_time = 0
     # U型曲线标签方向控制
     _label_direction = "right"  # "left" 或 "right"，初始设为右侧
     _previous_x_for_direction = None  # 用于检测x值变化趋势
     _x_change_threshold = 5.0  # x值变化阈值，调大到5.0，超过此值认为到达转折点
     _direction_switched = False  # 标记是否已经切换过方向，防止多次切换
     # 基于工作位移的高亮点控制
+    _highlight_threshold = 15  # 高亮点阈值
     _y_start_value = None  # 起始点的y值（位移起始点）
     _y_max_value = None  # 最大y值（位移终止点）
     _highlight_step = None  # 间隔值（工作位移/5）
@@ -312,7 +311,6 @@ class TestViewWidget_1(QWidget):
             self._record_dot_x = []
             self._record_dot_y = []
             self._has_saved = False  # 新测试开始，重置入库标记
-            self._hightlight_time = 0  # 重置标签左右判定，每轮从右5左5重新开始
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
@@ -331,12 +329,14 @@ class TestViewWidget_1(QWidget):
                 self._highlighted_displacements = set()  # 已打点的位移值集合
                 self._is_increasing_phase = True  # 初始为增加阶段（压的过程）
                 self._previous_y = None  # 上一个y值
+                self.stack_cnt = []  # 用于记录拉过程中打点位置
                 self._max_highlight_count = max(10, int(working_displacement / self._highlight_step) + 2)  # 按实际工作位移决定数量上限
                 # print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}, 最大高亮数≈{self._max_highlight_count}")
             except (ValueError, TypeError):
                 self._highlight_step = None
                 self._working_displacement = None
                 self._max_highlight_count = 10
+                self.stack_cnt = []
             # 不清空表单中的拔销值显示
             # if "拔销值" in self.inputs:
             #     self.inputs["拔销值"].setText("")
@@ -347,6 +347,8 @@ class TestViewWidget_1(QWidget):
             # 插入边界线
             base = float(self.input_manager.get_value("工作载荷"))
             # print("载荷", base)
+            # 将x轴范围初始化为载荷的0.8-1.2倍
+            self.set_x_range(base * 0.5, base * 2)
             line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
             self.inputs["恒定度"].setText("")
@@ -358,7 +360,8 @@ class TestViewWidget_1(QWidget):
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # # 开始生成数据
-            # self.serial_reader.start_test_thread()  # 启动测试线程
+            # TODO:正式时删除
+            self.serial_reader.start_test_thread()  # 启动测试线程
             self.serial_reader.start()
             
 
@@ -369,8 +372,10 @@ class TestViewWidget_1(QWidget):
         if self._latest_x_value is not None:
             # 记录最新的x值作为初始值
             # DEBUG：初始值先给个100
-            self._x_initial = self._latest_x_value
-            self._y_initial = self._latest_y_value
+            # self._x_initial = self._latest_x_value
+            # self._y_initial = self._latest_y_value
+            self._x_initial = 0
+            self._y_initial = 100
             # self._x_initial = 100
             # print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial}")
@@ -435,60 +440,12 @@ class TestViewWidget_1(QWidget):
             
             # # 测试结束后重新分析完整图形并重新排列标签
             self.reanalyze_and_rearrange_labels()
+            # TODO:正式删除
+            self.serial_reader.stop_test_thread()
+            self.serial_reader.end()
     
     def reanalyze_and_rearrange_labels(self):
-        # """测试结束后重新分析完整图形，找到真正的拐点并重新排列标签"""
-        # if not self._record_dot_x or not self._record_dot_y:
-        #     return
         
-        # # 更安全地清除现有的数值标签（只清除我们添加的标签）
-        # items_to_remove = []
-        # for item in self.plot_widget.plotItem.items[:]:
-        #     if isinstance(item, TextItem):
-        #         text_content = item.toPlainText()
-        #         # 只清除内容为数字的标签
-        #         try:
-        #             float(text_content)
-        #             items_to_remove.append(item)
-        #         except ValueError:
-        #             pass
-        # for item in items_to_remove:
-        #     self.plot_widget.plotItem.removeItem(item)
-
-        # # 分析完整数据序列找到真正的拐点
-        # x_data = self._record_dot_x
-        # y_data = self._record_dot_y
-        # min_x_index = x_data.index(min(x_data))
-
-        # # 只为高亮点（每隔_show_dot_duration个点，且保证至少有一个标签）重新添加标签
-        # highlighted_indices = list(range(0, len(x_data), self._show_dot_duration))
-        # if len(x_data) > 0 and (len(x_data)-1) not in highlighted_indices:
-        #     highlighted_indices.append(len(x_data)-1)  # 保证最后一个点有标签
-
-        # # 统计左右侧标签数量，用于纵向错开
-        # right_indices = [i for i in highlighted_indices if i <= min_x_index]
-        # left_indices = [i for i in highlighted_indices if i > min_x_index]
-        # # 计算自适应纵向偏移量（y轴范围的比例）
-        # y_range = self.plot_widget.plotItem.viewRange()[1]
-        # base_y_offset = (y_range[1] - y_range[0]) * 0.03
-        # # 简化标签逻辑：前6个放右边，第7个及以后放左边
-        # for idx, data_index in enumerate(highlighted_indices):
-        #     x = x_data[data_index]
-        #     y = y_data[data_index]
-        #     x_range = self.plot_widget.plotItem.viewRange()[0]
-        #     y_range = self.plot_widget.plotItem.viewRange()[1]
-        #     x_offset = (x_range[1] - x_range[0]) * 0.02
-        #     y_offset = (y_range[1] - y_range[0]) * 0.03
-        #     if idx < 6:
-        #         label_x = x + x_offset
-        #     else:
-        #         label_x = x - x_offset
-        #     label_y = y - y_offset
-        #     text_item = TextItem(f"{x:.3f}", color=(0, 0, 0), anchor=(0.5, 1))
-        #     text_item.setPos(label_x, label_y)
-        #     self.plot_widget.plotItem.addItem(text_item)
-        # print(f"重新分析完成：找到拐点在索引 {min_x_index}，共重新排列了 {len(highlighted_indices)} 个标签")
-            
         # 计算超载试验值（工作载荷的1.8-2.0倍随机整数）
         try:
             working_load = float(self.input_manager.get_value("工作载荷"))
@@ -554,35 +511,6 @@ class TestViewWidget_1(QWidget):
             self.curve.setData(x, y)
 
 
-    # def rewrite_chart(self, x: [], y: []):
-    #     self.plot_widget.clear()
-    #     self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
-    #     self._record_dot_y = y
-    #     self._record_dot_x = x
-    #     self._cnt_receive_dot = 0
-
-    #     # 应用当前的x轴范围设置
-    #     self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
-        
-    #     # 插入边界线
-    #     base = int(self.input_manager.get_value("工作载荷"))
-    #     print("载荷", base)
-    #     line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
-    #     line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
-    #     self.plot_widget.addItem(line1)
-    #     self.plot_widget.addItem(line2)
-
-    #     self.update_chart(self._record_dot_x, self._record_dot_y)
-    #     for i in range(0, len(x)):
-    #         self._cnt_receive_dot += 1
-    #         if self._cnt_receive_dot % self._show_dot_duration == 0:
-    #             highlight_index = i // self._show_dot_duration
-    #             side = "right" if highlight_index < 6 else "left"
-    #             self.highlight_plot(x[i], y[i], side)
-    #             # 使用matplotlib保存高质量图片
-    #             self.save_high_res_chart()
-
-
     def highlight_plot(self, x: float, y: float, side: str):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
         highlight = pg.ScatterPlotItem(
@@ -599,7 +527,7 @@ class TestViewWidget_1(QWidget):
         x_range = view_range[0]
         y_range = view_range[1]
         x_offset = (x_range[1] - x_range[0]) * 0.03  # 3%的x轴范围
-        y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
+        y_offset = 0
         # print(x, y, side)
         # 根据 side 参数决定标签左右
         if side == "right":
@@ -685,7 +613,7 @@ class TestViewWidget_1(QWidget):
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
 
         x_offset = (self.current_x_max - self.current_x_min) * 0.06
-        y_offset = 500 * 0.01
+        y_offset = 0
 
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
             # 前5个是左臂（放左侧），后5个是右臂（放右侧）
@@ -757,7 +685,6 @@ class TestViewWidget_1(QWidget):
 
     #     return grid_layout
 
-
     def handle_data(self, data):
         x, y = ast.literal_eval(data)
         # 时刻记录最新的x值，独立于_record_dot_x结构
@@ -784,19 +711,7 @@ class TestViewWidget_1(QWidget):
             # 确保y值不为负
             if y < 0:
                 y = 0
-        
-        # # 实现固定起始点逻辑：让第一个点显示在100的位置（0-200范围的中间）
-        # if not self._has_recorded_start and not self.btn1.isEnabled() and self.btn2.isEnabled():
-        #     # 当开始按钮被禁用且结束按钮被启用时，表示正在测试过程中
-        #     # 计算偏移量，使第一个点显示在100的位置
-        #     self._y_start = y - 100
-        #     self._has_recorded_start = True
-        #     # print(f"设置偏移量: {self._y_start}，使第一个点显示在100的位置")
-        #     # 第一个点直接设置为100
-        #     y = 100
-        # elif self._has_recorded_start:
-        #     # 减去偏移量，保持相对变化
-        #     y = y - self._y_start
+        print("get data:", x, y,)
             
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
@@ -805,7 +720,7 @@ class TestViewWidget_1(QWidget):
         if self.serial_reader._sending_data == False:
             return
         
-        print("get data:", x, y)
+        print("get data last:", x, y)
         self._cnt_receive_dot += 1
         
         # 记录起始点的y值（第一个点）
@@ -826,40 +741,40 @@ class TestViewWidget_1(QWidget):
         self._previous_y = y
         base = int(self.input_manager.get_value("工作位移"))
         # 基于工作位移的高亮点逻辑
+        print("check:", self._highlight_step, self._y_start_value, self._is_increasing_phase, len(self.stack_cnt), 
+              self._highlight_threshold, base)
         if self._highlight_step is not None and self._y_start_value is not None:
             should_highlight = False
             highlight_side = "right"
             target_displacement = None
             
             if self._is_increasing_phase:
-                # 压的过程：在起始点 + 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
-                for i in range(0, base // self._highlight_step):
-                    target = self._y_start_value + self._highlight_step * i
-                    if target not in self._highlighted_displacements:
-                        if y >= target - 0.5:  # 允许0.5mm的容差
-                            should_highlight = True
-                            highlight_side = "right"
-                            target_displacement = target
-                            break
-                    if target > y + 1.0:  # 还未到达，后续目标更远，可提前退出
-                        break
+                # 拉的过程：每隔 _highlight_threshold 打一个点
+                if len(self.stack_cnt) == 0:
+                    self.stack_cnt.append(y)
+                    should_highlight = True
+                    highlight_side = "right"
+                else:
+                    next_highlight_pos = self.stack_cnt[-1] + self._highlight_threshold
+                    if next_highlight_pos < base and y >= next_highlight_pos:
+                        self.stack_cnt.append(y)
+                        should_highlight = True
+                        highlight_side = "right"
             else:
-                # 拉的过程：y和压一样
-                print(_y_max_value, self._highlighted_displacements, y)
-                if self._y_max_value is not None:
-                    for index, value in enumerate(self._highlighted_displacements):
-                        # if -value not in self._highlighted_displacements:
-                            if (y - value) < 0.05 and (y - value) > 0:
-                                should_highlight = True
-                                highlight_side = "left"
+                # 压的过程：y和拉一样
+                if len(self.stack_cnt) > 0 and abs(y - self.stack_cnt[-1]) < 0.05:
+                    should_highlight = True
+                    highlight_side = "left"
+                    self.stack_cnt.pop()
             
-            if should_highlight and target_displacement is not None:
-                self._highlighted_displacements.add(target_displacement)
-                self._hightlight_time += 1
+            if should_highlight:
+                
+                if target_displacement is not None and highlight_side == "right":
+                    self.stack_cnt.append(target_displacement)
                 self.highlight_plot(x, y, highlight_side)
                 # 使用matplotlib保存高质量图片
                 self.save_high_res_chart(highlight_side)
-                # print(f"高亮点 #{self._hightlight_time}: y={y:.2f}, 目标位移={target_displacement:.2f}, 侧={highlight_side}")
+            
         
         # 更新图表
         self.update_chart(self._record_dot_x, self._record_dot_y)
