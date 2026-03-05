@@ -20,24 +20,30 @@ class SerialReader(QObject):
         self._running = True  # 程序启动就开始运行
         self._sending_data = False  # 控制是否发送数据的变量
         self.thread = None
+        self._test_thread_started = False
         # 程序启动就开始读取数据
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
-            self.thread = threading.Thread(target=self.read_data)
-            self.thread.daemon = True
-            self.thread.start()
-        except serial.SerialException as e:
-            print(e)
-            self.data_received.emit(f"[串口错误] {e}")
+        # TODO：正式时启动下面的解除
+        # try:
+        #     self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+        #     self.thread = threading.Thread(target=self.test)
+        #     self.thread.daemon = True
+        #     self.thread.start()
+        # except serial.SerialException as e:
+        #     print(e)
+        #     self.data_received.emit(f"[串口错误] {e}")
 
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程
         self._sending_data = True
+        # TODO:正式时删去
+        self._test_thread_started = True
         # print("开始发送数据")
 
     def stop(self):
         # 只修改控制发送数据的变量，不停止线程
         self._sending_data = False
+        # TODO:正式时删去
+        self._test_thread_started = False
         # print("停止发送数据")
 
     def stop_test_thread(self):
@@ -64,7 +70,7 @@ class SerialReader(QObject):
         if not self._test_thread_started:
             try:
                 # 测试条件下是test函数，正式条件下是read_data函数
-                self.thread = threading.Thread(target=self.read_data)
+                self.thread = threading.Thread(target=self.test)
                 self.thread.daemon = True
                 self.thread.start()
                 self._test_thread_started = True
@@ -148,28 +154,26 @@ class SerialReader(QObject):
     # 测试函数，生成随机数据，逻辑与read_data保持一致
     def test(self):
         from random import uniform
-        y = 5500
+        y = 0
         i = 0
         # print("开始测试模式，生成随机数据")
         while self._running:
             try:
-                if i <= 50:
+                if i <= 200:
                     y += 1
-                    x = uniform(4950, 5000)
+                    x = uniform(26.1, 26.15) 
                 else:
                     y -= 1
-                    x = uniform(4900, 4950)  # 生成 [4900, 5000) 范围内的随机小数
+                    x = uniform(25.80, 25.85)
                 
-                # 转换为整数，去掉小数点
-                x = int(x)
                 data = f"({x}, {y})"
                 # 无条件发送数据，确保data_display能接收到
-                # print("send data:", data)
+                print("send data:", data, self._sending_data)
                 self.data_received.emit(data)
                     
                 i += 1
-                if i >= 100:  # 重置循环，使数据持续波动
-                    i = 0
+                if i > 400:
+                    break
                     
                 time.sleep(0.2)
             except Exception as e:
