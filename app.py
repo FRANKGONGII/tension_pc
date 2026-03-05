@@ -172,7 +172,8 @@ class MainWindow(QMainWindow):
         chart_widget1._label_direction = "right"  # 初始设为右侧
         chart_widget1._previous_x_for_direction = None
         chart_widget1._direction_switched = False  # 重置切换标记
-            # 初始化基于工作位移的高亮点控制变量
+        chart_widget1._existing_file_path = None
+        # 初始化基于工作位移的高亮点控制变量
         try:
             chart_widget1._highlight_step = 15
             chart_widget1._y_start_value = None  # 将在第一个数据点记录
