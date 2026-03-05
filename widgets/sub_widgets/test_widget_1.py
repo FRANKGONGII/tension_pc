@@ -357,6 +357,7 @@ class TestViewWidget_1(QWidget):
             self.inputs["位移起始点值"].setText("")
             self.inputs["实测位移值"].setText("")
             self.inputs["载荷偏差度"].setText("")
+            self.inputs["锁定位置"].setText("")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # # 开始生成数据
@@ -480,6 +481,10 @@ class TestViewWidget_1(QWidget):
         if base != 0:
             load_values = calculate_load_deviation(float(base), self._record_dot_x)
             self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
+        # 写入锁定位置（实测位移值 / 去0时记录的y位置到最大y值的距离）
+        y_max = max(self._record_dot_y) if self._record_dot_y else 0
+        lock_position = calculate_lock_position(real_value, y_max)
+        self.inputs["锁定位置"].setText(f"{lock_position:.2f}" if lock_position is not None else "")
 
     def create_chart(self, x: list, y: list, x_center=5000, y_center=5000):
         self.plot_widget = pg.PlotWidget()
