@@ -53,7 +53,7 @@ class TestViewWidget_1(QWidget):
     # 拔销值
     _pin_pull_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
-    _latest_x_value = None
+    _latest_x_value = -1
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_y_value = None
     # U型曲线标签方向控制
@@ -387,10 +387,10 @@ class TestViewWidget_1(QWidget):
             # self._x_initial = self._latest_x_value
             # self._y_initial = self._latest_y_value
             self._x_initial = 0
-            self._y_initial = 100
+            self._y_initial = 0
             # self._x_initial = 100
             # print(f"记录x初始值: {self._x_initial}")
-            QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial}")
+            QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}")
         else:
             QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
 
@@ -420,11 +420,6 @@ class TestViewWidget_1(QWidget):
             self.serial_reader.stop()
             # 停止测试线程
             # self.serial_reader.stop_test_thread()
-            # 清空x轴初始值和拔销值
-            self._x_initial = None
-            self._y_initial = None
-            self._pin_pull_value = None
-            
             # 计算时间相关值
             import random
             from datetime import timedelta
@@ -450,8 +445,14 @@ class TestViewWidget_1(QWidget):
             self.inputs["起始-终止时间"].setText(f"{start_time_str}-{end_time_str}")
             self.inputs["超载试验保持时间"].setText(duration_str)
             
-            # # 测试结束后重新分析完整图形并重新排列标签
+            # 测试结束后重新分析完整图形并重新排列标签（必须在清空初始值之前）
             self.reanalyze_and_rearrange_labels()
+
+            # 清空x轴初始值和拔销值
+            self._x_initial = None
+            self._y_initial = None
+            self._pin_pull_value = None
+
             # TODO:正式删除
             self.serial_reader.stop_test_thread()
             self.serial_reader.end()
@@ -482,7 +483,7 @@ class TestViewWidget_1(QWidget):
         end_value = max(self._record_dot_y) if self._record_dot_y else 0
         self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
         # 写入位移起始点值
-        start_value = self._record_dot_y[0]
+        start_value = self._y_initial
         self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
         # 写入实测位移值
         real_value = end_value - start_value
@@ -502,7 +503,7 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.setBackground('w')
         self.plot_widget.setTitle("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', size='14pt')
         self.plot_widget.setLabel('left', '位移Travel(mm)', **{'color': '#000', 'font-size': '12pt'})
-        self.plot_widget.setLabel('top', '载荷Load(N)', **{'color': '#000', 'font-size': '12pt'})
+        self.plot_widget.setLabel('top', '载荷Load(kN)', **{'color': '#000', 'font-size': '12pt'})
         self.plot_widget.showGrid(x=True, y=True)
 
         # 把 curve 存起来，以便后续更新
@@ -599,69 +600,21 @@ class TestViewWidget_1(QWidget):
         # 绘制数据点
         ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
 
-        # 在整个Y轴范围内均匀选择10个目标Y值，然后分配给左右各5个点
-        n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
-        min_x_index = x_data.index(min(x_data)) if x_data else 0
-
-        left_indices = [i for i in range(n) if i <= min_x_index]
-        right_indices = [i for i in range(n) if i > min_x_index]
-
-        if n <= 10:
-            highlighted_indices = list(range(n))
-            left_selected = [i for i in highlighted_indices if i <= min_x_index]
-            right_selected = [i for i in highlighted_indices if i > min_x_index]
-        else:
-            # 在整个Y轴范围内均匀选择10个目标Y值
-            y_min, y_max = min(y_data), max(y_data)
-            if y_max - y_min < 1e-6:
-                y_targets = [y_min] * 10
-            else:
-                y_targets = [y_min + i * (y_max - y_min) / 9 for i in range(10)]
-
-            # 交替分配：第1个左边，第2个右边，第3个左边，第4个右边...
-            left_selected = []
-            right_selected = []
-            used = set()
-
-            for idx, y_t in enumerate(y_targets):
-                if idx % 2 == 0:
-                    # 偶数索引（0,2,4,6,8）：分配给左边，优先从左臂找
-                    left_cands = [i for i in left_indices if i not in used]
-                    right_cands = [i for i in right_indices if i not in used]
-                    all_cands = left_cands + right_cands  # 优先左臂
-                    if not all_cands:
-                        break
-                    best = min(all_cands, key=lambda i: abs(y_data[i] - y_t))
-                    left_selected.append(best)
-                    used.add(best)
-                else:
-                    # 奇数索引（1,3,5,7,9）：分配给右边，优先从右臂找
-                    left_cands = [i for i in left_indices if i not in used]
-                    right_cands = [i for i in right_indices if i not in used]
-                    all_cands = right_cands + left_cands  # 优先右臂
-                    if not all_cands:
-                        break
-                    best = min(all_cands, key=lambda i: abs(y_data[i] - y_t))
-                    right_selected.append(best)
-                    used.add(best)
-
-            highlighted_indices = left_selected + right_selected
+        highlighted_indices = [i for i, h in enumerate(self._record_dot_highlight) if h]
         highlighted_x = [x_data[i] for i in highlighted_indices]
         highlighted_y = [y_data[i] for i in highlighted_indices]
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
 
         x_offset = (self.current_x_max - self.current_x_min) * 0.06
-        y_offset = 0
 
-        for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
-            # 前5个是左臂（放左侧），后5个是右臂（放右侧）
-            if i < len(left_selected):
-                label_x = x - x_offset
-            else:
+        for idx, (x, y) in zip(highlighted_indices, zip(highlighted_x, highlighted_y)):
+            side_right = self._record_dot_side[idx]
+            if side_right:
                 label_x = x + x_offset
-            label_y = y - y_offset
-            ax.text(label_x, label_y, f'{x:.3f}', fontsize=14, ha='center', va='top', color='black')
+            else:
+                label_x = x - x_offset
+            ax.text(label_x, y, f'{x:.3f}', fontsize=14, ha='center', va='top', color='black')
         
         # 绘制工作载荷的上下5%线
         base = float(self.input_manager.get_value("工作载荷"))
@@ -670,7 +623,7 @@ class TestViewWidget_1(QWidget):
         
         # 设置坐标轴标签和标题（增大字号确保打印可读）
         ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=16)
-        ax.set_xlabel('载荷Load(N)', fontsize=14)
+        ax.set_xlabel('载荷Load(kN)', fontsize=14)
         ax.set_ylabel('位移Travel(mm)', fontsize=14)
         ax.tick_params(axis='both', labelsize=14)
         

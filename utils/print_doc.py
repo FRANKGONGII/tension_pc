@@ -110,8 +110,8 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     section = doc.sections[0]
 
     # 设置页边距（单位：英寸），紧凑布局确保一页内
-    section.top_margin = Inches(0.3)
-    section.bottom_margin = Inches(0.3)
+    section.top_margin = Inches(0.2)
+    section.bottom_margin = Inches(0.2)
     section.left_margin = Inches(0.6)
     section.right_margin = Inches(0.6)
 
@@ -162,7 +162,10 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 添加基本信息表格
     table1 = doc.add_table(rows=3, cols=6)
     table1.style = 'Table Grid'
-
+    col_widths = [Inches(1.05), Inches(0.8), Inches(1.85), Inches(1.1), Inches(1.4), Inches(1.1)]
+    for i, width in enumerate(col_widths):
+        for row in table1.rows:
+            row.cells[i].width = width
 
     # TODO：边框设置加粗
     # detail字段顺序见data_manager.py表结构
@@ -206,7 +209,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     cell = table.cell(0, 0)
     # 在单元格内添加图片
     paragraph = cell.paragraphs[0]  # 获取单元格内的段落
-    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(5.8))  # 图片约6英寸
+    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6.6))
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph_format = paragraph.paragraph_format
     paragraph_format.space_before = Pt(4)
@@ -254,6 +257,10 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 其余内容为一个2x6表格
     main_table = doc.add_table(rows=2, cols=6)
     main_table.style = 'Table Grid'
+    main_col_widths = [Inches(1.05), Inches(0.8), Inches(1.35), Inches(0.9), Inches(1.7), Inches(1.5)]
+    for i, width in enumerate(main_col_widths):
+        for row in main_table.rows:
+            row.cells[i].width = width
     main_table.cell(0, 0).text = "位移起始点值\nInitial point"
     main_table.cell(0, 1).text = safe_str(detail[12]) if detail else ""
     main_table.cell(0, 2).text = "位移终止点值\nFinishing point"
@@ -274,7 +281,9 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 最后一个1行的表格，4个内容（自动适应页面宽度与上方表格一致）
     bottom_table = doc.add_table(rows=1, cols=8)
     bottom_table.style = 'Table Grid'
-    # 不设置任何列宽，让表格完全自动适应页面宽度，与 main_table 一致
+    bottom_col_widths = [Inches(1.1), Inches(0.725), Inches(1.5), Inches(0.425), Inches(1.1), Inches(0.625), Inches(1.3), Inches(0.525)]
+    for i, width in enumerate(bottom_col_widths):
+        bottom_table.cell(0, i).width = width
     bottom_table.cell(0, 0).text = "恒定度\nConstant rate"
     bottom_table.cell(0, 1).text = safe_str(detail[18]) if detail else ""
     bottom_table.cell(0, 2).text = "锁定位置\nLoad tolerance"
