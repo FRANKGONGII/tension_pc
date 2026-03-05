@@ -172,7 +172,7 @@ class SearchHistoryWidget(QWidget):
                 # 从数据库查询该ID的详细数据
                 detail_data = DataManager.queryById(int(data_id))
                 # 查询该ID的测试数据
-                x_list, y_list = DataManager.queryTestDataByFormId(int(data_id))
+                x_list, y_list, highlight, side_right = DataManager.queryTestDataByFormId(int(data_id))
                 
                 # 显示导入成功的提示
                 from PyQt5.QtWidgets import QMessageBox
@@ -228,10 +228,19 @@ class SearchHistoryWidget(QWidget):
                         for idx, field_name in fields:
                             if detail_data[idx] and field_name in test_widget.inputs:
                                 test_widget.inputs[field_name].setText(detail_data[idx])
+                        #传入导入数据的文件路径，便于直接打印文件
+                        if detail_data[22]:
+                            test_widget._existing_file_path = detail_data[22]
                     
                     # 更新图表数据
                     if hasattr(test_widget, 'rewrite_chart'):
-                        test_widget.rewrite_chart(x_list, y_list)
+                        test_widget.rewrite_chart(x_list, y_list, highlight, side_right)
+
+                    # 设置当前处理的数据ID，便于后续打印
+                    self.main_window.now_handle_data_id = int(data_id)
+                    # 导入的是已有数据，禁用测试入库按钮并标记为已入库
+                    test_widget.mark_as_saved()
+
             except Exception as e:
                 # print(f"导入数据时出错: {e}")
                 from PyQt5.QtWidgets import QMessageBox

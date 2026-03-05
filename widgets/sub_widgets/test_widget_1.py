@@ -32,6 +32,8 @@ class TestViewWidget_1(QWidget):
     _cnt_receive_dot = 0
     _record_dot_x = []
     _record_dot_y = []
+    _record_dot_highlight = []
+    _record_dot_side = []
     # 记录表单控件
     inputs = {}
     input_manager = inputManager()
@@ -68,6 +70,8 @@ class TestViewWidget_1(QWidget):
     _is_increasing_phase = True  # 当前是否在增加阶段（压的过程）
     _previous_y = None  # 上一个y值，用于判断位移变化趋势
     _has_saved = False  # 当前测试数据是否已入库，用于防止重复入库
+    _existing_file_path = None
+
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -101,8 +105,8 @@ class TestViewWidget_1(QWidget):
         # TODO:补充设计位移的获取逻辑
         self.design_displacement = 10  # 设计位移，单位mm
 
-
-
+    def set_restart(self):
+        self.restart = True
 
     def create_left_form(self):
         form_layout = QVBoxLayout()
@@ -242,7 +246,7 @@ class TestViewWidget_1(QWidget):
         self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
-        return self.input_manager, self._record_dot_x, self._record_dot_y
+        return self.input_manager, self._record_dot_x, self._record_dot_y, self._record_dot_highlight, self._record_dot_side
 
     def is_data_saved(self):
         """当前测试数据是否已入库（用于防止重复入库）"""
@@ -310,6 +314,8 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot = 0
             self._record_dot_x = []
             self._record_dot_y = []
+            self._record_dot_highlight = []
+            self._record_dot_side = []
             self._has_saved = False  # 新测试开始，重置入库标记
             # 重置去0逻辑相关变量
             self._y_start = None
@@ -349,14 +355,19 @@ class TestViewWidget_1(QWidget):
             # print("载荷", base)
             # 将x轴范围初始化为载荷的0.8-1.2倍
             self.set_x_range(base * 0.5, base * 2)
-            line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
-            line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+            line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
+            line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
             self.inputs["恒定度"].setText("")
             self.inputs["总位移"].setText("")
             self.inputs["位移终止点值"].setText("")
             self.inputs["位移起始点值"].setText("")
             self.inputs["实测位移值"].setText("")
             self.inputs["载荷偏差度"].setText("")
+            self.inputs["超载试验值"].setText("")
+            self.inputs["起始-终止时间"].setText("")
+            self.inputs["超载试验保持时间"].setText("")
+            self.inputs["锁定位置"].setText("")
+            self.inputs["测试结果"].setText("")
             self.inputs["锁定位置"].setText("")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
@@ -444,9 +455,9 @@ class TestViewWidget_1(QWidget):
             # TODO:正式删除
             self.serial_reader.stop_test_thread()
             self.serial_reader.end()
-    
+
     def reanalyze_and_rearrange_labels(self):
-        
+
         # 计算超载试验值（工作载荷的1.8-2.0倍随机整数）
         try:
             working_load = float(self.input_manager.get_value("工作载荷"))
@@ -516,7 +527,7 @@ class TestViewWidget_1(QWidget):
             self.curve.setData(x, y)
 
 
-    def highlight_plot(self, x: float, y: float, side: str):
+    def highlight_plot(self, x: float, y: float, side_right: bool):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
         highlight = pg.ScatterPlotItem(
             [x], [y],
@@ -535,7 +546,7 @@ class TestViewWidget_1(QWidget):
         y_offset = 0
         # print(x, y, side)
         # 根据 side 参数决定标签左右
-        if side == "right":
+        if side_right:
             label_x = x + x_offset
         else:
             label_x = x - x_offset
@@ -548,10 +559,33 @@ class TestViewWidget_1(QWidget):
         label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0))
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
-    
-    def save_high_res_chart(self, side: str):
-        # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
-        # print(side, "==========================")
+
+    def rewrite_chart(self, x: list, y: list, highlight: list, side_right: list):
+        self.plot_widget.clear()
+        self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+        self._record_dot_y = y
+        self._record_dot_x = x
+        self._cnt_receive_dot = 0
+
+        # 应用当前的x轴范围设置
+        self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+
+        # 插入边界线
+        base = int(self.input_manager.get_value("工作载荷"))
+        print("载荷", base)
+        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
+        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
+        self.plot_widget.addItem(line1)
+        self.plot_widget.addItem(line2)
+
+        self.update_chart(self._record_dot_x, self._record_dot_y)
+        for i in range(0, len(highlight)):
+            if highlight[i]:
+                self.highlight_plot(x[i], y[i], side_right[i])
+        # 使用matplotlib保存高质量图片
+        self.save_high_res_chart()
+
+    def save_high_res_chart(self):
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示（按平台选择已安装字体，避免 findfont 警告）
         if sys.platform.startswith("win"):
@@ -631,8 +665,8 @@ class TestViewWidget_1(QWidget):
         
         # 绘制工作载荷的上下5%线
         base = float(self.input_manager.get_value("工作载荷"))
-        ax.axvline(x=base * 1.05, color='red', linestyle='--', linewidth=1.5)
-        ax.axvline(x=base * 0.95, color='green', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 1.06, color='red', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 0.94, color='green', linestyle='--', linewidth=1.5)
         
         # 设置坐标轴标签和标题（增大字号确保打印可读）
         ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=16)
@@ -746,11 +780,9 @@ class TestViewWidget_1(QWidget):
         self._previous_y = y
         base = int(self.input_manager.get_value("工作位移"))
         # 基于工作位移的高亮点逻辑
-        print("check:", self._highlight_step, self._y_start_value, self._is_increasing_phase, len(self.stack_cnt), 
-              self._highlight_threshold, base)
+        should_highlight = False
+        highlight_side_right = True
         if self._highlight_step is not None and self._y_start_value is not None:
-            should_highlight = False
-            highlight_side = "right"
             target_displacement = None
             
             if self._is_increasing_phase:
@@ -758,28 +790,26 @@ class TestViewWidget_1(QWidget):
                 if len(self.stack_cnt) == 0:
                     self.stack_cnt.append(y)
                     should_highlight = True
-                    highlight_side = "right"
                 else:
                     next_highlight_pos = self.stack_cnt[-1] + self._highlight_threshold
                     if next_highlight_pos < base and y >= next_highlight_pos:
                         self.stack_cnt.append(y)
                         should_highlight = True
-                        highlight_side = "right"
             else:
                 # 压的过程：y和拉一样
                 if len(self.stack_cnt) > 0 and abs(y - self.stack_cnt[-1]) < 0.05:
                     should_highlight = True
-                    highlight_side = "left"
+                    highlight_side_right = False
                     self.stack_cnt.pop()
             
             if should_highlight:
-                
-                if target_displacement is not None and highlight_side == "right":
+
+                if target_displacement is not None and highlight_side_right:
                     self.stack_cnt.append(target_displacement)
-                self.highlight_plot(x, y, highlight_side)
+                self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
-                self.save_high_res_chart(highlight_side)
-            
+                self.save_high_res_chart()
+
         
         # 更新图表
         self.update_chart(self._record_dot_x, self._record_dot_y)
@@ -787,6 +817,8 @@ class TestViewWidget_1(QWidget):
         # 添加到记录列表
         self._record_dot_x.append(x)
         self._record_dot_y.append(y)
+        self._record_dot_highlight.append(should_highlight)
+        self._record_dot_side.append(highlight_side_right)
 
 
 
