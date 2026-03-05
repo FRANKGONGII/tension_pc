@@ -104,12 +104,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "无法打印：请先入库后再打印。")
             return
         # 2. 测试数据（x、y）非空检查
-        x_list, y_list = DataManager.queryTestDataByFormId(self.now_handle_data_id)
+        x_list, y_list, highlight, side_right = DataManager.queryTestDataByFormId(self.now_handle_data_id)
         if not x_list or not y_list:
             QMessageBox.warning(self, "提示", "无法打印：该记录没有测试数据（x、y 坐标点为空），无法生成报表。")
             return
         try:
-            print_doc(self.now_handle_data_id)
+            print_doc(self.now_handle_data_id, self.chart_widget1._existing_file_path)
             # 3. 打印成功提示
             QMessageBox.information(self, "提示", "打印成功！")
         except Exception as e:
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
             return
 
         data = self.chart_widget1.get_all_data()
-        x_list, y_list = data[1], data[2]
+        x_list, y_list, highlight, side_right = data[1], data[2], data[3], data[4]
 
         # 2. 数据检查：x、y 坐标点不能为空
         if not x_list or not y_list:
@@ -181,7 +181,7 @@ class MainWindow(QMainWindow):
         # print("get data", data)
         last_id = DataManager.save_detail(data[0])
         self.now_handle_data_id = last_id
-        DataManager.save_test_data(last_id, x_list, y_list)
+        DataManager.save_test_data(last_id, x_list, y_list, highlight, side_right)
         self.chart_widget1.mark_as_saved()
 
         # 3. 入库成功提示

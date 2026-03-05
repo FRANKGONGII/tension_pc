@@ -8,7 +8,7 @@ from docx.oxml.shared import qn
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-def print_doc(now_handle_data_id=-1):
+def print_doc(now_handle_data_id=-1, existing_file_path=None):
     from docx import Document
     from docx.shared import Inches, Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -71,15 +71,29 @@ def print_doc(now_handle_data_id=-1):
             for e in tbl_borders.findall(qn('w:right')):
                 tbl_borders.remove(e)
             tbl_borders.append(right_border)
+    
+    import win32com.client
 
+    def print_word_file(path, printer_name):
+        word = win32com.client.Dispatch("Word.Application")
+        word.ActivePrinter = printer_name
+        doc = word.Documents.Open(path)
+        # wdPrintFromTo=3，只打印第1页
+        doc.PrintOut(Range=3, From="1", To="1")
+        doc.Close(False)
+        word.Quit()
     # 查询数据库获取数据
+    if existing_file_path is not None:
+        print_word_file(existing_file_path, get_printer_name())
+        return
+    
     from utils.data_manager import DataManager
     detail = DataManager.queryById(now_handle_data_id)
     # print(now_handle_data_id, detail)
     # 双重防护：无效记录或测试数据为空时直接返回，避免崩溃
     if detail is None:
         return
-    x_list, y_list = DataManager.queryTestDataByFormId(now_handle_data_id)
+    x_list, y_list, highlight, side_right = DataManager.queryTestDataByFormId(now_handle_data_id)
     if not x_list or not y_list:
         return
 
@@ -284,17 +298,6 @@ def print_doc(now_handle_data_id=-1):
 
     # 将文件完整路径写入数据库
     DataManager.update_file_path(now_handle_data_id, full_path)
-
-    import win32com.client
-
-    def print_word_file(path, printer_name):
-        word = win32com.client.Dispatch("Word.Application")
-        word.ActivePrinter = printer_name
-        doc = word.Documents.Open(path)
-        # wdPrintFromTo=3，只打印第1页
-        doc.PrintOut(Range=3, From="1", To="1")
-        doc.Close(False)
-        word.Quit()
     print_word_file(full_path, get_printer_name())
 
 

@@ -70,6 +70,8 @@ class TestViewWidget_1(QWidget):
     _is_increasing_phase = True  # 当前是否在增加阶段（压的过程）
     _previous_y = None  # 上一个y值，用于判断位移变化趋势
     _has_saved = False  # 当前测试数据是否已入库，用于防止重复入库
+    _existing_file_path = None
+
     def __init__(self):
         super().__init__()
         # 图表组件
@@ -103,8 +105,8 @@ class TestViewWidget_1(QWidget):
         # TODO:补充设计位移的获取逻辑
         self.design_displacement = 10  # 设计位移，单位mm
 
-
-
+    def set_restart(self):
+        self.restart = True
 
     def create_left_form(self):
         form_layout = QVBoxLayout()
@@ -244,7 +246,7 @@ class TestViewWidget_1(QWidget):
         self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
-        return self.input_manager, self._record_dot_x, self._record_dot_y, self._record_dot_highlight
+        return self.input_manager, self._record_dot_x, self._record_dot_y, self._record_dot_highlight, self._record_dot_side
 
     def is_data_saved(self):
         """当前测试数据是否已入库（用于防止重复入库）"""
@@ -353,14 +355,19 @@ class TestViewWidget_1(QWidget):
             # print("载荷", base)
             # 将x轴范围初始化为载荷的0.8-1.2倍
             self.set_x_range(base * 0.5, base * 2)
-            line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
-            line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
+            line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
+            line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
             self.inputs["恒定度"].setText("")
             self.inputs["总位移"].setText("")
             self.inputs["位移终止点值"].setText("")
             self.inputs["位移起始点值"].setText("")
             self.inputs["实测位移值"].setText("")
             self.inputs["载荷偏差度"].setText("")
+            self.inputs["超载实验值(N)"].setText("")
+            self.inputs["起始-终止时间"].setText("")
+            self.inputs["超载试验保持时间"].setText("")
+            self.inputs["锁定位置"].setText("")
+            self.inputs["测试结果"].setText("")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # # 开始生成数据
@@ -547,10 +554,33 @@ class TestViewWidget_1(QWidget):
         label = TextItem(f"{x:.3f}", anchor=(0.5, 1), color=(0, 0, 0))
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
-    
-    def save_high_res_chart(self, side_right: bool):
-        # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
-        # print(side_right, "==========================")
+
+    def rewrite_chart(self, x: list, y: list, highlight: list, side_right: list):
+        self.plot_widget.clear()
+        self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+        self._record_dot_y = y
+        self._record_dot_x = x
+        self._cnt_receive_dot = 0
+
+        # 应用当前的x轴范围设置
+        self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+
+        # 插入边界线
+        base = int(self.input_manager.get_value("工作载荷"))
+        print("载荷", base)
+        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
+        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
+        self.plot_widget.addItem(line1)
+        self.plot_widget.addItem(line2)
+
+        self.update_chart(self._record_dot_x, self._record_dot_y)
+        for i in range(0, len(highlight)):
+            if highlight[i]:
+                self.highlight_plot(x[i], y[i], side_right[i])
+        # 使用matplotlib保存高质量图片
+        self.save_high_res_chart()
+
+    def save_high_res_chart(self):
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示（按平台选择已安装字体，避免 findfont 警告）
         if sys.platform.startswith("win"):
@@ -630,8 +660,8 @@ class TestViewWidget_1(QWidget):
         
         # 绘制工作载荷的上下5%线
         base = float(self.input_manager.get_value("工作载荷"))
-        ax.axvline(x=base * 1.05, color='red', linestyle='--', linewidth=1.5)
-        ax.axvline(x=base * 0.95, color='green', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 1.06, color='red', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 0.94, color='green', linestyle='--', linewidth=1.5)
         
         # 设置坐标轴标签和标题（增大字号确保打印可读）
         ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=16)
@@ -755,18 +785,16 @@ class TestViewWidget_1(QWidget):
                 if len(self.stack_cnt) == 0:
                     self.stack_cnt.append(y)
                     should_highlight = True
-                    highlight_side = "right"
                 else:
                     next_highlight_pos = self.stack_cnt[-1] + self._highlight_threshold
                     if next_highlight_pos < base and y >= next_highlight_pos:
                         self.stack_cnt.append(y)
                         should_highlight = True
-                        highlight_side = "right"
             else:
                 # 压的过程：y和拉一样
                 if len(self.stack_cnt) > 0 and abs(y - self.stack_cnt[-1]) < 0.05:
                     should_highlight = True
-                    highlight_side = "left"
+                    highlight_side_right = False
                     self.stack_cnt.pop()
             
             if should_highlight:
@@ -775,7 +803,7 @@ class TestViewWidget_1(QWidget):
                     self.stack_cnt.append(target_displacement)
                 self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
-                self.save_high_res_chart(highlight_side_right)
+                self.save_high_res_chart()
 
         
         # 更新图表

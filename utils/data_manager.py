@@ -9,7 +9,7 @@ class DataManager:
         """查询指定 form_id 的测试数据，返回 (x_list, y_list, highlight, highlight_side_right)"""
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
-        sql = '''SELECT displacement, force, highlight, highlight_side FROM test_data WHERE form_id = ?'''
+        sql = '''SELECT displacement, force, highlight, highlight_side_right FROM test_data WHERE form_id = ?'''
         cursor.execute(sql, (form_id,))
         row = cursor.fetchone()
         conn.close()
