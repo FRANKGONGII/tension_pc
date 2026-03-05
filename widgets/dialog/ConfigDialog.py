@@ -1,12 +1,28 @@
 """综合配置对话框：打印机名称、打印文件保存地址、串口端口"""
 import os
+import sys
 from PyQt5.QtWidgets import (
     QDialog, QLabel, QLineEdit, QPushButton, QFileDialog,
-    QVBoxLayout, QHBoxLayout, QFormLayout, QDialogButtonBox
+    QVBoxLayout, QHBoxLayout, QFormLayout, QDialogButtonBox,
+    QComboBox
 )
 from PyQt5.QtCore import Qt
 
 from utils.config_manager import load_config, save_config
+
+
+def _get_system_printers():
+    """获取系统已连接的打印机列表（Windows）"""
+    if not sys.platform.startswith("win"):
+        return []
+    try:
+        import win32print
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        printers = win32print.EnumPrinters(flags)
+        # level 1 返回 (flags, description, name, comment)
+        return [p[2] for p in printers] if printers else []
+    except Exception:
+        return []
 
 
 class ConfigDialog(QDialog):
@@ -23,10 +39,17 @@ class ConfigDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(12)
 
-        # 打印机名称
-        self.printer_edit = QLineEdit()
-        self.printer_edit.setPlaceholderText("例如：Canon iP1188 series")
-        form.addRow("打印机名称：", self.printer_edit)
+        # 打印机名称：下拉选择系统打印机，也可手动输入
+        self.printer_edit = QComboBox()
+        self.printer_edit.setEditable(True)
+        self.printer_edit.setMinimumWidth(300)
+        printer_layout = QHBoxLayout()
+        printer_layout.addWidget(self.printer_edit)
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.setToolTip("重新获取系统打印机列表")
+        refresh_btn.clicked.connect(self._refresh_printers)
+        printer_layout.addWidget(refresh_btn)
+        form.addRow("打印机名称：", printer_layout)
 
         # 打印文件保存地址
         save_layout = QHBoxLayout()
@@ -55,9 +78,30 @@ class ConfigDialog(QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
+    def _refresh_printers(self):
+        """从系统获取打印机列表并填充下拉框"""
+        printers = _get_system_printers()
+        current = self.printer_edit.currentText().strip()
+        self.printer_edit.clear()
+        self.printer_edit.addItems(printers)
+        if current:
+            idx = self.printer_edit.findText(current)
+            if idx >= 0:
+                self.printer_edit.setCurrentIndex(idx)
+            else:
+                self.printer_edit.setCurrentText(current)
+
     def _load_values(self):
         cfg = load_config()
-        self.printer_edit.setText(cfg["printer_name"])
+        printers = _get_system_printers()
+        self.printer_edit.clear()
+        self.printer_edit.addItems(printers)
+        saved_name = cfg["printer_name"]
+        idx = self.printer_edit.findText(saved_name)
+        if idx >= 0:
+            self.printer_edit.setCurrentIndex(idx)
+        else:
+            self.printer_edit.setCurrentText(saved_name)
         self.save_path_edit.setText(cfg["print_save_path"])
         self.port_edit.setText(cfg["serial_port"])
 
@@ -67,7 +111,7 @@ class ConfigDialog(QDialog):
             self.save_path_edit.setText(path)
 
     def _on_accept(self):
-        printer = self.printer_edit.text().strip()
+        printer = self.printer_edit.currentText().strip()
         save_path = self.save_path_edit.text().strip()
         port = self.port_edit.text().strip()
         if not printer:

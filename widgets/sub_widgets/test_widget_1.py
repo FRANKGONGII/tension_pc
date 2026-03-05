@@ -1,4 +1,5 @@
 import ast
+import sys
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
@@ -614,8 +615,11 @@ class TestViewWidget_1(QWidget):
         # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
         # print(side, "==========================")
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
-        # 设置matplotlib支持中文显示
-        plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
+        # 设置matplotlib支持中文显示（按平台选择已安装字体，避免 findfont 警告）
+        if sys.platform.startswith("win"):
+            plt.rcParams["font.family"] = ["SimHei", "SimSun", "Microsoft YaHei"]
+        else:
+            plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
 
         # 创建matplotlib图表
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量

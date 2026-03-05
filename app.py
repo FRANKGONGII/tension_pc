@@ -23,7 +23,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("恒力吊架性能测试系统")
-        self.resize(2000,1000)
         self.init_ui()
         self.load_styles()
         # 预期恒定度
@@ -33,9 +32,9 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """初始化主界面布局"""
-        screen =  QApplication.primaryScreen()
-        screen_width = screen.size().width()
-        dock_width = screen_width // 5  # 1/5 屏幕宽度
+        screen = QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else None
+        dock_width = (avail.width() // 5) if avail else 400  # 1/5 可用宽度
 
         central_widget = QWidget()
 
@@ -96,7 +95,6 @@ class MainWindow(QMainWindow):
         self.dock.setMaximumWidth(dock_width)
         self.dock.setVisible(False)
 
-        # 最大化启动
         self.showMaximized()
 
     def handle_print_doc(self):
@@ -225,7 +223,3 @@ class MainWindow(QMainWindow):
         maxP = max(points)
         minP = min(points)
         return (maxP - minP) * 100 / (maxP + minP)
-
-
-
-

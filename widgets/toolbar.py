@@ -1,6 +1,6 @@
 from enum import auto
 
-from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup
+from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, QWidget, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIntValidator
 from component.buttons import MenuButton,ChartButton1,ChartButton2
@@ -32,12 +32,6 @@ class ToolBarWidget(QToolBar):
         self.init_ui()
 
     def init_ui(self):
-        # 创建功能按钮
-        buttons = [
-            ("查询历史", self.on_get_history),
-            ("帮助", self.on_help)
-        ]
-        
         # 创建坐标轴范围设置按钮，点击弹出对话框
         self.axis_range_button = QPushButton("坐标轴范围")
         self.axis_range_button.setCursor(Qt.PointingHandCursor)
@@ -58,21 +52,35 @@ class ToolBarWidget(QToolBar):
         self.save_btn = QPushButton("测试入库")
         self.addWidget(self.save_btn)
 
-        self.edit_btn = QPushButton("数据编辑")
-        self.addWidget(self.edit_btn)
-        
         self.print_btn = QPushButton("打印")
         self.addWidget(self.print_btn)
 
         # 添加坐标轴范围设置按钮
         self.addWidget(self.axis_range_button)
-        
-        # 添加功能按钮
-        for text, callback in buttons:
-            btn = QPushButton(text)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(callback)
-            self.addWidget(btn)
+
+        # 查询历史
+        history_btn = QPushButton("查询历史")
+        history_btn.setCursor(Qt.PointingHandCursor)
+        history_btn.clicked.connect(self.on_get_history)
+        self.addWidget(history_btn)
+
+        # 数据编辑：放在帮助左边，左右各增加间距
+        spacer_left = QWidget()
+        spacer_left.setFixedWidth(24)
+        spacer_left.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.addWidget(spacer_left)
+        self.edit_btn = QPushButton("数据编辑")
+        self.addWidget(self.edit_btn)
+        spacer_right = QWidget()
+        spacer_right.setFixedWidth(24)
+        spacer_right.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.addWidget(spacer_right)
+
+        # 帮助
+        help_btn = QPushButton("帮助")
+        help_btn.setCursor(Qt.PointingHandCursor)
+        help_btn.clicked.connect(self.on_help)
+        self.addWidget(help_btn)
 
         # 互斥选中：仅算法1、算法2两个按钮，点击后高亮，点击另一按钮时原选中自动恢复原色
         self._chart_button_group = QButtonGroup(self)

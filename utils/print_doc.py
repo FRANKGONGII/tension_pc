@@ -192,11 +192,11 @@ def print_doc(now_handle_data_id=-1):
     cell = table.cell(0, 0)
     # 在单元格内添加图片
     paragraph = cell.paragraphs[0]  # 获取单元格内的段落
-    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6))  # 图片约6英寸
+    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(5.8))  # 图片约6英寸
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph_format = paragraph.paragraph_format
     paragraph_format.space_before = Pt(4)
-    paragraph_format.space_after = Pt(4)
+    paragraph_format.space_after = Pt(4)  # 减小间距，避免内容溢出产生空白第二页
 
 
 
@@ -291,12 +291,11 @@ def print_doc(now_handle_data_id=-1):
         word = win32com.client.Dispatch("Word.Application")
         word.ActivePrinter = printer_name
         doc = word.Documents.Open(path)
-        doc.PrintOut()  # 打印
+        # wdPrintFromTo=3，只打印第1页
+        doc.PrintOut(Range=3, From="1", To="1")
         doc.Close(False)
         word.Quit()
     print_word_file(full_path, get_printer_name())
-
-
 
 
 def format_table_cells(table, font_size=9):
