@@ -1,6 +1,6 @@
 from enum import auto
 
-from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, QWidget, QSizePolicy
+from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, QWidget, QSizePolicy, QMessageBox
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIntValidator
 from component.buttons import MenuButton,ChartButton1,ChartButton2
@@ -16,6 +16,7 @@ class ToolBarWidget(QToolBar):
     switch_chart_1 = pyqtSignal()  # 切换信号（供主界面使用）
     switch_chart_2 = pyqtSignal()
     history_visible = pyqtSignal()
+    clear_panel_clicked = pyqtSignal()
     edit_visible = pyqtSignal()
     x_range_changed = pyqtSignal(int, int)
     y_range_changed = pyqtSignal(int, int)
@@ -63,6 +64,12 @@ class ToolBarWidget(QToolBar):
         history_btn.setCursor(Qt.PointingHandCursor)
         history_btn.clicked.connect(self.on_get_history)
         self.addWidget(history_btn)
+
+        # 清空面板
+        self.clear_import_btn = QPushButton("清空面板")
+        self.clear_import_btn.setCursor(Qt.PointingHandCursor)
+        self.clear_import_btn.clicked.connect(self.clear_panel_clicked.emit)
+        self.addWidget(self.clear_import_btn)
 
         # 数据编辑：放在帮助左边，左右各增加间距
         spacer_left = QWidget()
