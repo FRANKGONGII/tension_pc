@@ -49,8 +49,8 @@ class TestViewWidget_1(QWidget):
     # 标记是否已经记录了起始点
     _has_recorded_start = False
     # x轴初始值，用于x轴去0逻辑
-    _x_initial = None
-    _y_initial = None
+    _x_initial = 0
+    _y_initial = 0
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_x_value = -1
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
@@ -191,6 +191,8 @@ class TestViewWidget_1(QWidget):
                 border: 1px solid black;
             }
         """)
+        value_font = QFont()
+        value_font.setPointSize(14)
         for row, item in enumerate(table_rows):
             label_text, key, widget_type, cfg = item if len(item) == 4 else (*item[:3], None)
             # 左列：名称
@@ -201,16 +203,18 @@ class TestViewWidget_1(QWidget):
             # 右列：值
             if widget_type == "lineedit":
                 value_widget = QLineEdit()
+                value_widget.setAlignment(Qt.AlignCenter)
             elif widget_type == "combobox":
                 value_widget = QComboBox()
                 value_widget.addItems(cfg["items"])
                 value_widget.setCurrentText(cfg["default"])
                 value_widget.setEditable(True)
+                value_widget.lineEdit().setAlignment(Qt.AlignCenter)
                 inputManager.set_value(self.input_manager, key, cfg["default"])
             else:
                 value_widget = QLabel()
                 value_widget.setStyleSheet("background-color: #F0F0F0;")
-            value_widget.setFont(font)
+            value_widget.setFont(value_font)
             value_widget.setMinimumHeight(28)
             if isinstance(value_widget, QLabel):
                 value_widget.setAlignment(Qt.AlignCenter)
@@ -381,8 +385,8 @@ class TestViewWidget_1(QWidget):
             # 停止测试线程
             # self.serial_reader.stop_test_thread()
             # 清空x轴初始值
-            self._x_initial = None
-            self._y_initial = None
+            self._x_initial = 0
+            self._y_initial = 0
             
             # 计算时间相关值
             import random
@@ -415,8 +419,8 @@ class TestViewWidget_1(QWidget):
             self.reanalyze_and_rearrange_labels()
 
             # 清空x轴初始值和拔销值
-            self._x_initial = None
-            self._y_initial = None
+            self._x_initial = 0
+            self._y_initial = 0
             self._pin_pull_value = None
 
             # TODO:正式删除
