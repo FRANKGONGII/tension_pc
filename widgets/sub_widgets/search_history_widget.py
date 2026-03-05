@@ -228,6 +228,7 @@ class SearchHistoryWidget(QWidget):
                         for idx, field_name in fields:
                             if detail_data[idx] and field_name in test_widget.inputs:
                                 test_widget.inputs[field_name].setText(detail_data[idx])
+                        #传入导入数据的文件路径，便于直接打印文件
                         if detail_data[22]:
                             test_widget._existing_file_path = detail_data[22]
                     

@@ -363,7 +363,7 @@ class TestViewWidget_1(QWidget):
             self.inputs["位移起始点值"].setText("")
             self.inputs["实测位移值"].setText("")
             self.inputs["载荷偏差度"].setText("")
-            self.inputs["超载实验值(N)"].setText("")
+            self.inputs["超载试验值"].setText("")
             self.inputs["起始-终止时间"].setText("")
             self.inputs["超载试验保持时间"].setText("")
             self.inputs["锁定位置"].setText("")
