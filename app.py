@@ -151,6 +151,7 @@ class MainWindow(QMainWindow):
             get_logger().debug("TestViewWidget_2暂不支持x轴范围调整")
 
     def history_visible(self):
+        self.search_history_widget.handle_search()
         self.dock.setVisible(not self.dock.isVisible())
 
     def show_config_dialog(self):
