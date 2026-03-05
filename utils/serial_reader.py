@@ -3,6 +3,7 @@ import time
 from random import random
 
 import serial
+import serial.tools.list_ports
 import threading
 from utils.system_logger import get_logger
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QPushButton
@@ -19,7 +20,15 @@ class SerialReader(QObject):
         self._running = True  # 程序启动就开始运行
         self._sending_data = False  # 控制是否发送数据的变量
         self.thread = None
-        self._test_thread_started = False  # 标记测试线程是否已启动
+        # 程序启动就开始读取数据
+        try:
+            self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+            self.thread = threading.Thread(target=self.read_data)
+            self.thread.daemon = True
+            self.thread.start()
+        except serial.SerialException as e:
+            print(e)
+            self.data_received.emit(f"[串口错误] {e}")
 
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程
@@ -55,7 +64,7 @@ class SerialReader(QObject):
         if not self._test_thread_started:
             try:
                 # 测试条件下是test函数，正式条件下是read_data函数
-                self.thread = threading.Thread(target=self.test)
+                self.thread = threading.Thread(target=self.read_data)
                 self.thread.daemon = True
                 self.thread.start()
                 self._test_thread_started = True
@@ -65,65 +74,74 @@ class SerialReader(QObject):
                 self.data_received.emit(f"[测试线程错误] {e}")
 
     def read_data(self):
-        # print("开始读取数据")
+        print("开始读取数据")
         buffer = ""
-        while self._running:
-            try:
-                if self.ser and self.ser.is_open:
-                    bytes_to_read = self.ser.in_waiting
-                    if bytes_to_read > 0:
-                        raw_data = self.ser.read(bytes_to_read).decode(errors='ignore')
-                        buffer += raw_data
+        try:
+            while self._running:
+                try:
+                    if self.ser and self.ser.is_open:
+                        bytes_to_read = self.ser.in_waiting
+                        if bytes_to_read > 0:
+                            raw_data = self.ser.read(bytes_to_read).decode(errors='ignore')
+                            buffer += raw_data
 
-                        while ':' in buffer:
-                            start_index = buffer.find(':')
-                            next_start_index = buffer.find(':', start_index + 1)
+                            while ':' in buffer:
+                                start_index = buffer.find(':')
+                                next_start_index = buffer.find(':', start_index + 1)
 
-                            if next_start_index == -1:
-                                break
+                                if next_start_index == -1:
+                                    break
 
-                            one_record = buffer[start_index:next_start_index]
-                            buffer = buffer[next_start_index:]
+                                one_record = buffer[start_index:next_start_index]
+                                buffer = buffer[next_start_index:]
 
-                            # ----------------- 解析报文 -----------------
-                            try:
-                                hex_str = one_record[1:]  # 去掉前导冒号
-                                data_bytes = bytes.fromhex(hex_str)
+                                # ----------------- 解析报文 -----------------
+                                try:
+                                    hex_str = one_record[1:]  # 去掉前导冒号
+                                    data_bytes = bytes.fromhex(hex_str)
 
-                                # 这里根据你前面的结构，3个寄存器数据从第 7 字节开始
-                                # [功能码02 10] [寄存器地址00 00] [寄存器数量00 03] [字节数06]
-                                # => 实际数据部分从索引 7 开始，共 6 个字节（3*2）
-                                if len(data_bytes) >= 13:  # 确保长度够
-                                    force = int.from_bytes(data_bytes[7:9], byteorder="big", signed=False)
-                                    distance = int.from_bytes(data_bytes[9:11], byteorder="big", signed=False)
-                                    status = int.from_bytes(data_bytes[11:13], byteorder="big", signed=False)
+                                    # 这里根据你前面的结构，3个寄存器数据从第 7 字节开始
+                                    # [功能码02 10] [寄存器地址00 00] [寄存器数量00 03] [字节数06]
+                                    # => 实际数据部分从索引 7 开始，共 6 个字节（3*2）
+                                    if len(data_bytes) >= 13:  # 确保长度够
+                                        force = int.from_bytes(data_bytes[7:9], byteorder="big", signed=False)
+                                        distance = int.from_bytes(data_bytes[9:11], byteorder="big", signed=False)
+                                        status = int.from_bytes(data_bytes[11:13], byteorder="big", signed=False)
 
-                                    parsed = {
-                                        "raw": one_record,
-                                        "distance": distance,
-                                        "force": force,
-                                        "status": status,
-                                    }
-                                    # print(parsed)
-                                    data = f"({force * 9.8 / 1000}, {distance})"
-                                    with open("data.txt", "a") as f:
-                                        f.write(data + "\n")
-                                        
-                                    # 无条件发送数据，确保data_display能接收到
-                                    self.data_received.emit(data)
-                                else:
-                                    # pass
-                                    get_logger().warning("无效报文: %s", one_record)
+                                        parsed = {
+                                            "raw": one_record,
+                                            "distance": distance,
+                                            "force": force,
+                                            "status": status,
+                                        }
+                                        # print(parsed)
+                                        data = f"({force * 9.8 / 1000}, {distance})"
+                                        with open("data.txt", "a") as f:
+                                            f.write(data + "\n")
+                                            
+                                        # 无条件发送数据，确保data_display能接收到
+                                        self.data_received.emit(data)
+                                    else:
+                                        # pass
+                                        get_logger().warning("无效报文: %s", one_record)
 
-                            except Exception as e:
-                                # print(f"解析错误: {e}, 报文={one_record}")
-                                # 无条件发送错误信息，确保data_display能接收到
-                                self.data_received.emit(one_record)
-            except Exception as e:
-                # 无条件发送错误信息，确保data_display能接收到
-                self.data_received.emit(f"[读取错误] {e}")
-                # 不中断循环，继续尝试读取数据
-                time.sleep(0.1)
+                                except Exception as e:
+                                    # print(f"解析错误: {e}, 报文={one_record}")
+                                    # 无条件发送错误信息，确保data_display能接收到
+                                    self.data_received.emit(one_record)
+                except Exception as e:
+                    # 无条件发送错误信息，确保data_display能接收到
+                    self.data_received.emit(f"[读取错误] {e}")
+                    # 不中断循环，继续尝试读取数据
+                    time.sleep(0.1)
+        finally:
+            # 线程退出时关闭串口，以便下次开始能重新打开
+            if self.ser and self.ser.is_open:
+                try:
+                    self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
 
 
 

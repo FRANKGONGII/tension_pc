@@ -47,10 +47,13 @@ class TestViewWidget_1(QWidget):
     _has_recorded_start = False
     # x轴初始值，用于x轴去0逻辑
     _x_initial = None
+    _y_initial = None
     # 拔销值
     _pin_pull_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_x_value = None
+    # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
+    _latest_y_value = None
     # 记录hight了几次
     _hightlight_time = 0
     # U型曲线标签方向控制
@@ -75,8 +78,8 @@ class TestViewWidget_1(QWidget):
         self.restart = False
         self.plot_widget = pg.PlotWidget()
         # x轴范围变量
-        self.current_x_min = 2500
-        self.current_x_max = 10000
+        self.current_x_min = 0
+        self.current_x_max = 200
 
         # 整体布局：上方左右 + 下方表格
         main_layout = QHBoxLayout()
@@ -322,7 +325,7 @@ class TestViewWidget_1(QWidget):
                 working_displacement = float(self.input_manager.get_value("工作位移"))
                 self._working_displacement = working_displacement
                 # 间隔 = 工作位移/10，高亮数量 = ceil(工作位移/间隔) ≈ 10，随工作位移缩放
-                self._highlight_step = working_displacement / 10.0
+                self._highlight_step = 15
                 self._y_start_value = None  # 将在第一个数据点记录
                 self._y_max_value = None  # 将在测试过程中更新
                 self._highlighted_displacements = set()  # 已打点的位移值集合
@@ -342,7 +345,7 @@ class TestViewWidget_1(QWidget):
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
                 self.restart = False
             # 插入边界线
-            base = int(self.input_manager.get_value("工作载荷"))
+            base = float(self.input_manager.get_value("工作载荷"))
             # print("载荷", base)
             line1 = InfiniteLine(pos=base * 1.05, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.95, angle=90, pen='g')
@@ -354,8 +357,8 @@ class TestViewWidget_1(QWidget):
             self.inputs["载荷偏差度"].setText("")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
-            # 开始生成数据
-            self.serial_reader.start_test_thread()  # 启动测试线程
+            # # 开始生成数据
+            # self.serial_reader.start_test_thread()  # 启动测试线程
             self.serial_reader.start()
             
 
@@ -366,8 +369,9 @@ class TestViewWidget_1(QWidget):
         if self._latest_x_value is not None:
             # 记录最新的x值作为初始值
             # DEBUG：初始值先给个100
-            # self._x_initial = self._latest_x_value
-            self._x_initial = 100
+            self._x_initial = self._latest_x_value
+            self._y_initial = self._latest_y_value
+            # self._x_initial = 100
             # print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial}")
         else:
@@ -398,9 +402,10 @@ class TestViewWidget_1(QWidget):
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
             # 停止测试线程
-            self.serial_reader.stop_test_thread()
+            # self.serial_reader.stop_test_thread()
             # 清空x轴初始值和拔销值
             self._x_initial = None
+            self._y_initial = None
             self._pin_pull_value = None
             
             # 计算时间相关值
@@ -539,9 +544,9 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.getViewBox().invertY(True)
         self.plot_widget.getViewBox().setMouseEnabled(x=False, y=False)  # 禁用拖拽平移，固定图表
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
-        self.plot_widget.setXRange(x_center / 2, x_center * 2)
-        # 将y轴范围设置为0-200
-        self.plot_widget.setYRange(0, 200)
+        self.plot_widget.setXRange(0, 200)
+        # 将y轴范围设置为0-500
+        self.plot_widget.setYRange(0, 500)
 
 
     def update_chart(self, x: list, y: list):
@@ -680,7 +685,7 @@ class TestViewWidget_1(QWidget):
         ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
 
         x_offset = (self.current_x_max - self.current_x_min) * 0.06
-        y_offset = 200 * 0.01
+        y_offset = 500 * 0.01
 
         for i, (x, y) in enumerate(zip(highlighted_x, highlighted_y)):
             # 前5个是左臂（放左侧），后5个是右臂（放右侧）
@@ -692,7 +697,7 @@ class TestViewWidget_1(QWidget):
             ax.text(label_x, label_y, f'{x:.3f}', fontsize=14, ha='center', va='top', color='black')
         
         # 绘制工作载荷的上下5%线
-        base = int(self.input_manager.get_value("工作载荷"))
+        base = float(self.input_manager.get_value("工作载荷"))
         ax.axvline(x=base * 1.05, color='red', linestyle='--', linewidth=1.5)
         ax.axvline(x=base * 0.95, color='green', linestyle='--', linewidth=1.5)
         
@@ -704,7 +709,7 @@ class TestViewWidget_1(QWidget):
         
         # 设置坐标轴范围
         ax.set_xlim(self.current_x_min, self.current_x_max)
-        ax.set_ylim(0, 200)
+        ax.set_ylim(0, 500)
         
         # 设置y轴为0在上（反转y轴）
         ax.invert_yaxis()
@@ -757,6 +762,7 @@ class TestViewWidget_1(QWidget):
         x, y = ast.literal_eval(data)
         # 时刻记录最新的x值，独立于_record_dot_x结构
         self._latest_x_value = x
+        self._latest_y_value = y
         
         # print(self.adjust_center, self.adjust_number)
         if self.adjust_center != -1:
@@ -773,27 +779,33 @@ class TestViewWidget_1(QWidget):
             # 确保x值不为负
             if x < 0:
                 x = 0
+        if self._y_initial is not None:
+            y = y - self._y_initial
+            # 确保y值不为负
+            if y < 0:
+                y = 0
         
-        # 实现固定起始点逻辑：让第一个点显示在100的位置（0-200范围的中间）
-        if not self._has_recorded_start and not self.btn1.isEnabled() and self.btn2.isEnabled():
-            # 当开始按钮被禁用且结束按钮被启用时，表示正在测试过程中
-            # 计算偏移量，使第一个点显示在100的位置
-            self._y_start = y - 100
-            self._has_recorded_start = True
-            # print(f"设置偏移量: {self._y_start}，使第一个点显示在100的位置")
-            # 第一个点直接设置为100
-            y = 100
-        elif self._has_recorded_start:
-            # 减去偏移量，保持相对变化
-            y = y - self._y_start
+        # # 实现固定起始点逻辑：让第一个点显示在100的位置（0-200范围的中间）
+        # if not self._has_recorded_start and not self.btn1.isEnabled() and self.btn2.isEnabled():
+        #     # 当开始按钮被禁用且结束按钮被启用时，表示正在测试过程中
+        #     # 计算偏移量，使第一个点显示在100的位置
+        #     self._y_start = y - 100
+        #     self._has_recorded_start = True
+        #     # print(f"设置偏移量: {self._y_start}，使第一个点显示在100的位置")
+        #     # 第一个点直接设置为100
+        #     y = 100
+        # elif self._has_recorded_start:
+        #     # 减去偏移量，保持相对变化
+        #     y = y - self._y_start
             
         # 发射处理后的数据到data_display
-        self.received_data_changed.emit([x, y])
+        if self._record_dot_y is not None and len(self._record_dot_y) > 0:
+            self.received_data_changed.emit([x, y - self._record_dot_y[0]])
         
         if self.serial_reader._sending_data == False:
             return
         
-        # print("get data:", x, y)
+        print("get data:", x, y)
         self._cnt_receive_dot += 1
         
         # 记录起始点的y值（第一个点）
@@ -812,7 +824,7 @@ class TestViewWidget_1(QWidget):
             elif y < self._previous_y:
                 self._is_increasing_phase = False  # 位移减少，拉的过程
         self._previous_y = y
-        
+        base = int(self.input_manager.get_value("工作位移"))
         # 基于工作位移的高亮点逻辑
         if self._highlight_step is not None and self._y_start_value is not None:
             should_highlight = False
@@ -821,7 +833,7 @@ class TestViewWidget_1(QWidget):
             
             if self._is_increasing_phase:
                 # 压的过程：在起始点 + 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
-                for i in range(1, 6):
+                for i in range(0, base // self._highlight_step):
                     target = self._y_start_value + self._highlight_step * i
                     if target not in self._highlighted_displacements:
                         if y >= target - 0.5:  # 允许0.5mm的容差
@@ -834,7 +846,7 @@ class TestViewWidget_1(QWidget):
             else:
                 # 拉的过程：从最大位移 - 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
                 if self._y_max_value is not None:
-                    for i in range(1, 6):
+                    for i in range(1, base // self._highlight_step + 1):
                         target = self._y_max_value - self._highlight_step * i
                         if -target not in self._highlighted_displacements:
                             if y <= target + 0.5:  # 允许0.5mm的容差
