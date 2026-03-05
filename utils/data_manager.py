@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from PO.input_data import inputManager
 from utils.system_logger import get_logger
@@ -5,15 +6,29 @@ from utils.system_logger import get_logger
 class DataManager:
     @staticmethod
     def queryTestDataByFormId(form_id):
+        """查询指定 form_id 的测试数据，返回 (x_list, y_list, highlight, highlight_side_right)"""
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
-        sql = '''SELECT displacement, force FROM test_data WHERE form_id = ?'''
+        sql = '''SELECT displacement, force, highlight, highlight_side FROM test_data WHERE form_id = ?'''
         cursor.execute(sql, (form_id,))
-        results = cursor.fetchall()
+        row = cursor.fetchone()
         conn.close()
-        x_list = [row[0] for row in results]
-        y_list = [row[1] for row in results]
-        return x_list, y_list
+        if row is None:
+            return [], [], [], []
+        try:
+            raw_y = json.loads(row[0]) if isinstance(row[0], str) else [row[0]]
+            raw_x = json.loads(row[1]) if isinstance(row[1], str) else [row[1]]
+            raw_hl = json.loads(row[2]) if len(row) > 2 and row[2] is not None else []
+            raw_side = json.loads(row[3]) if len(row) > 3 and row[3] is not None else []
+
+            x_list = [float(v) for v in raw_x]
+            y_list = [float(v) for v in raw_y]
+            highlight = [bool(v) for v in raw_hl]
+            highlight_side_right = [bool(v) for v in raw_side]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return [], [], [], []
+        return x_list, y_list, highlight, highlight_side_right
+
     def __init__(self):
         self.init_db()
 
@@ -52,10 +67,12 @@ class DataManager:
         cursor.execute(
             '''
             CREATE TABLE IF NOT EXISTS test_data (
-                test_id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键
-                form_id INTEGER,                            -- 外键，关联主表
-                displacement REAL,                          -- 测试位移
-                force REAL,                                 -- 测试力
+                test_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                form_id INTEGER UNIQUE,
+                displacement TEXT,
+                force TEXT,
+                highlight TEXT,
+                highlight_side_right TEXT,
                 FOREIGN KEY(form_id) REFERENCES test_detail(id) ON DELETE CASCADE
             )
             '''
@@ -125,22 +142,22 @@ class DataManager:
         conn.close()
 
     @staticmethod
-    def save_test_data(form_id: int, x_list: list, y_list: list):
+    def save_test_data(form_id: int, x_list: list, y_list: list, highlight: list, highlight_side_right: list):
+        """保存测试数据，displacement/force 以 JSON 列表形式存储"""
         if len(x_list) != len(y_list):
             raise ValueError("x_list 和 y_list 长度不一致")
-        # print(form_id)
 
         conn = sqlite3.connect("form_data.db")
         cursor = conn.cursor()
-        data_tuples = [(form_id, x, y) for x, y in zip(x_list, y_list)]
-        cursor.executemany(
+        cursor.execute(
             '''
-            INSERT INTO test_data (form_id, displacement, force)
-            VALUES (?, ?, ?)
+            INSERT OR REPLACE INTO test_data (form_id, displacement, force, highlight, highlight_side_right)
+            VALUES (?, ?, ?, ?, ?)
             ''',
-            data_tuples
+            (form_id, json.dumps([float(y) for y in y_list]), json.dumps([float(x) for x in x_list]), json.dumps([bool(h) for h in highlight]), json.dumps([bool(sr) for sr in highlight_side_right]))
         )
         conn.commit()
+        conn.close()
 
     @staticmethod
     def queryByYear(year):

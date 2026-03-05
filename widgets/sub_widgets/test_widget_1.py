@@ -32,6 +32,7 @@ class TestViewWidget_1(QWidget):
     _cnt_receive_dot = 0
     _record_dot_x = []
     _record_dot_y = []
+    _record_dot_highlight = []
     # 记录表单控件
     inputs = {}
     input_manager = inputManager()
@@ -243,7 +244,7 @@ class TestViewWidget_1(QWidget):
         self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
-        return self.input_manager, self._record_dot_x, self._record_dot_y
+        return self.input_manager, self._record_dot_x, self._record_dot_y, self._record_dot_highlight
 
     def is_data_saved(self):
         """当前测试数据是否已入库（用于防止重复入库）"""
@@ -311,6 +312,7 @@ class TestViewWidget_1(QWidget):
             self._cnt_receive_dot = 0
             self._record_dot_x = []
             self._record_dot_y = []
+            self._record_dot_highlight = []
             self._has_saved = False  # 新测试开始，重置入库标记
             self._hightlight_time = 0  # 重置标签左右判定，每轮从右5左5重新开始
             # 重置去0逻辑相关变量
@@ -583,7 +585,7 @@ class TestViewWidget_1(QWidget):
     #             self.save_high_res_chart()
 
 
-    def highlight_plot(self, x: float, y: float, side: str):
+    def highlight_plot(self, x: float, y: float, side_right: bool):
         # 加一个红色的大点覆盖在原曲线上，曲线不变
         highlight = pg.ScatterPlotItem(
             [x], [y],
@@ -602,7 +604,7 @@ class TestViewWidget_1(QWidget):
         y_offset = (y_range[1] - y_range[0]) * 0.01  # 1%的y轴范围
         # print(x, y, side)
         # 根据 side 参数决定标签左右
-        if side == "right":
+        if side_right:
             label_x = x + x_offset
         else:
             label_x = x - x_offset
@@ -616,9 +618,9 @@ class TestViewWidget_1(QWidget):
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
     
-    def save_high_res_chart(self, side: str):
+    def save_high_res_chart(self, side_right: bool):
         # TODO:11/3需要修复绘制逻辑，不要重新绘制之前的或者记录一下每个要highlight的位置是左边还是右边
-        # print(side, "==========================")
+        # print(side_right, "==========================")
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
         # 设置matplotlib支持中文显示（按平台选择已安装字体，避免 findfont 警告）
         if sys.platform.startswith("win"):
@@ -826,9 +828,9 @@ class TestViewWidget_1(QWidget):
         self._previous_y = y
         base = int(self.input_manager.get_value("工作位移"))
         # 基于工作位移的高亮点逻辑
+        should_highlight = False
+        highlight_side_right = True
         if self._highlight_step is not None and self._y_start_value is not None:
-            should_highlight = False
-            highlight_side = "right"
             target_displacement = None
             
             if self._is_increasing_phase:
@@ -838,27 +840,26 @@ class TestViewWidget_1(QWidget):
                     if target not in self._highlighted_displacements:
                         if y >= target - 0.5:  # 允许0.5mm的容差
                             should_highlight = True
-                            highlight_side = "right"
                             target_displacement = target
                             break
                     if target > y + 1.0:  # 还未到达，后续目标更远，可提前退出
                         break
             else:
                 # 拉的过程：y和压一样
-                print(_y_max_value, self._highlighted_displacements, y)
+                print(self._y_max_value, self._highlighted_displacements, y)
                 if self._y_max_value is not None:
                     for index, value in enumerate(self._highlighted_displacements):
                         # if -value not in self._highlighted_displacements:
                             if (y - value) < 0.05 and (y - value) > 0:
                                 should_highlight = True
-                                highlight_side = "left"
+                                highlight_side_right = False
             
             if should_highlight and target_displacement is not None:
                 self._highlighted_displacements.add(target_displacement)
                 self._hightlight_time += 1
-                self.highlight_plot(x, y, highlight_side)
+                self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
-                self.save_high_res_chart(highlight_side)
+                self.save_high_res_chart(highlight_side_right)
                 # print(f"高亮点 #{self._hightlight_time}: y={y:.2f}, 目标位移={target_displacement:.2f}, 侧={highlight_side}")
         
         # 更新图表
@@ -867,6 +868,8 @@ class TestViewWidget_1(QWidget):
         # 添加到记录列表
         self._record_dot_x.append(x)
         self._record_dot_y.append(y)
+        self._record_dot_highlight.append(should_highlight)
+        self._record_dot_side.append(highlight_side_right)
 
 
 
