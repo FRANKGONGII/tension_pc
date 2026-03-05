@@ -36,16 +36,16 @@ class SearchHistoryWidget(QWidget):
         layout.addLayout(row2)
 
         # 复选框：全部数据 / 自动隐藏
-        row3 = QHBoxLayout()
-        self.checkbox_all = QCheckBox("全部数据")
-        self.checkbox_auto_hide = QCheckBox("自动隐藏")
-        row3.addWidget(self.checkbox_all)
-        row3.addWidget(self.checkbox_auto_hide)
-        layout.addLayout(row3)
+        # row3 = QHBoxLayout()
+        # self.checkbox_all = QCheckBox("全部数据")
+        # self.checkbox_auto_hide = QCheckBox("自动隐藏")
+        # row3.addWidget(self.checkbox_all)
+        # row3.addWidget(self.checkbox_auto_hide)
+        # layout.addLayout(row3)
 
         # 查询框（例如筛选框）
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("试验日期或者其他")
+        self.search_box.setPlaceholderText("输入用户或者出厂编号")
         layout.addWidget(self.search_box)
 
         # 表格控件
@@ -57,14 +57,14 @@ class SearchHistoryWidget(QWidget):
         self.table.cellClicked.connect(self.handle_cell_click)
         layout.addWidget(self.table)
 
-        # 删除按钮 + 输出标记复选框
-        row4 = QHBoxLayout()
-        self.delete_button = QPushButton("删除")
-        self.delete_button.setEnabled(False)
-        self.mark_checkbox = QCheckBox("输出标记")
-        row4.addWidget(self.delete_button)
-        row4.addWidget(self.mark_checkbox)
-        layout.addLayout(row4)
+        # # 删除按钮 + 输出标记复选框
+        # row4 = QHBoxLayout()
+        # self.delete_button = QPushButton("删除")
+        # self.delete_button.setEnabled(False)
+        # self.mark_checkbox = QCheckBox("输出标记")
+        # row4.addWidget(self.delete_button)
+        # row4.addWidget(self.mark_checkbox)
+        # layout.addLayout(row4)
 
         # 搜索框回车触发搜索
         self.search_box.returnPressed.connect(self.handle_search)
