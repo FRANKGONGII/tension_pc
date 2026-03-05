@@ -50,8 +50,6 @@ class TestViewWidget_1(QWidget):
     # x轴初始值，用于x轴去0逻辑
     _x_initial = None
     _y_initial = None
-    # 拔销值
-    _pin_pull_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
     _latest_x_value = None
     # 最新的x值，独立于_record_dot_x结构，时刻记录最新的x值
@@ -114,51 +112,33 @@ class TestViewWidget_1(QWidget):
         font.setPointSize(12)
 
 
-        # 添加两个按钮
+        # 记录初始值、开始、结束 三个按钮放在一排，记录初始值在第一位
         button_layout = QHBoxLayout()
+        self.btn_zero = QPushButton("记录初始值(去0)")
         self.btn1 = QPushButton("开始")
         self.btn2 = QPushButton("结束")
-        self.btn1.setFont(font)
-        self.btn2.setFont(font)
-        self.btn1.setFixedHeight(32)
-        self.btn2.setFixedHeight(32)
+        for btn in (self.btn_zero, self.btn1, self.btn2):
+            btn.setFont(font)
+            btn.setFixedHeight(32)
+        self.btn_zero.setMinimumSize(150, 50)
         self.btn1.setMinimumSize(120, 50)
         self.btn2.setMinimumSize(120, 50)
+        button_layout.addWidget(self.btn_zero)
         button_layout.addWidget(self.btn1)
         button_layout.addWidget(self.btn2)
         self.btn1.setEnabled(self.if_start)
         self.btn2.setEnabled(not self.if_start)
 
         # 绑定槽函数
+        self.btn_zero.clicked.connect(self.on_zero_clicked)
         self.btn1.clicked.connect(self.on_start_clicked)
         self.btn2.clicked.connect(self.on_end_clicked)
 
         # 设置初始可见性
+        self.btn_zero.setVisible(False)
         self.btn1.setVisible(False)
         self.btn2.setVisible(False)
         form_layout.addLayout(button_layout)
-        
-        # 添加两个新按钮：去0按钮和记录拔销值按钮
-        new_button_layout = QHBoxLayout()
-        self.btn_zero = QPushButton("记录初始值(去0)")
-        self.btn_pin_pull = QPushButton("记录拔销值")
-        self.btn_zero.setFont(font)
-        self.btn_pin_pull.setFont(font)
-        self.btn_zero.setFixedHeight(32)
-        self.btn_pin_pull.setFixedHeight(32)
-        self.btn_zero.setMinimumSize(150, 50)
-        self.btn_pin_pull.setMinimumSize(150, 50)
-        new_button_layout.addWidget(self.btn_zero)
-        new_button_layout.addWidget(self.btn_pin_pull)
-        
-        # 设置初始可见性（与开始/结束按钮逻辑一致）
-        self.btn_zero.setVisible(False)
-        self.btn_pin_pull.setVisible(False)
-        form_layout.addLayout(new_button_layout)
-        
-        # 绑定槽函数
-        self.btn_zero.clicked.connect(self.on_zero_clicked)
-        self.btn_pin_pull.clicked.connect(self.on_pin_pull_clicked)
 
         # 初始化串口监听（端口从配置读取，下次启动测试时生效）
         self.listening = True  # 状态变量：是否正在监听串口
@@ -201,14 +181,7 @@ class TestViewWidget_1(QWidget):
         
         add_label_input("出厂编号：")
         add_label_input("型号规格：")
-        add_label_input("工作载荷(N): ")
-
-        direction = add_label_input("位移方向：", QComboBox())
-        direction.addItems(["上", "下", "左", "右"])
-        direction.setCurrentIndex(0)
-        inputManager.set_value(self.input_manager, "位移方向", "上")
-
-        add_label_input("总位移(mm): ")
+        add_label_input("工作载荷(kN): ")
         add_label_input("工作位移：")
 
         operator = add_label_input("操作员：", QComboBox())
@@ -222,13 +195,22 @@ class TestViewWidget_1(QWidget):
         checker.setEditable(True)
         inputManager.set_value(self.input_manager, "检验员", "陈广春")
 
-        # 状态项
-        for label in [
-            "位移起始点值", "位移终止点值", "实测位移值",
-            "超载试验值(N)", "起始-终止时间", "超载试验保持时间",
-            "恒定度", "锁定位置", "载荷偏差度", "测试结果", "拔销值"
-        ]:
-            add_label_input(label)
+        direction = add_label_input("位移方向：", QComboBox())
+        direction.addItems(["上", "下", "左", "右"])
+        direction.setCurrentIndex(0)
+        inputManager.set_value(self.input_manager, "位移方向", "上")
+
+        add_label_input("总位移(mm): ")
+        add_label_input("位移起始点值")
+        add_label_input("位移终止点值")
+        add_label_input("实测位移值")
+        add_label_input("超载试验值(kN)")
+        add_label_input("起始-终止时间")
+        add_label_input("超载试验保持时间")
+        add_label_input("恒定度")
+        add_label_input("锁定位置")
+        add_label_input("载荷偏差度")
+        add_label_input("测试结果")
         self.bind_signals()
 
         return form_layout
@@ -261,12 +243,10 @@ class TestViewWidget_1(QWidget):
             self.btn1.setVisible(False)
             self.btn2.setVisible(False)
             self.btn_zero.setVisible(False)
-            self.btn_pin_pull.setVisible(False)
         else:
             self.btn1.setVisible(True)
             self.btn2.setVisible(True)
             self.btn_zero.setVisible(True)
-            self.btn_pin_pull.setVisible(True)
             self.show_buttons = False
 
     def on_start_clicked(self):
@@ -343,9 +323,6 @@ class TestViewWidget_1(QWidget):
                 self._working_displacement = None
                 self._max_highlight_count = 10
                 self.stack_cnt = []
-            # 不清空表单中的拔销值显示
-            # if "拔销值" in self.inputs:
-            #     self.inputs["拔销值"].setText("")
             if self.restart == True:
                 self.plot_widget.clear()
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
@@ -394,21 +371,6 @@ class TestViewWidget_1(QWidget):
         else:
             QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
 
-    def on_pin_pull_clicked(self):
-        """记录当前x值作为拔销值"""
-        if self._latest_x_value is not None:
-            # 记录最新的x值作为拔销值
-            # DEBUG：拔销值先给个100
-            # self._pin_pull_value = self._latest_x_value
-            self._pin_pull_value = 100
-            # 在左侧表单中显示拔销值
-            if "拔销值" in self.inputs:
-                self.inputs["拔销值"].setText(f"{self._pin_pull_value:.3f}")
-            # print(f"记录拔销值: {self._pin_pull_value}")
-            QMessageBox.information(self, "提示", f"已记录拔销值: {self._pin_pull_value:.3f}")
-        else:
-            QMessageBox.warning(self, "警告", "暂无数据可记录拔销值")
-
     def on_end_clicked(self):
         if self.btn2.isEnabled():
             self.restart = True
@@ -420,10 +382,9 @@ class TestViewWidget_1(QWidget):
             self.serial_reader.stop()
             # 停止测试线程
             # self.serial_reader.stop_test_thread()
-            # 清空x轴初始值和拔销值
+            # 清空x轴初始值
             self._x_initial = None
             self._y_initial = None
-            self._pin_pull_value = None
             
             # 计算时间相关值
             import random
