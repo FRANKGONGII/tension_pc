@@ -4,7 +4,8 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QComboBox, QHBoxLayout, QVBoxLayout,
-    QGridLayout, QPushButton, QMessageBox
+    QGridLayout, QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
+    QHeaderView, QAbstractItemView
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -139,6 +140,7 @@ class TestViewWidget_1(QWidget):
         self.btn1.setVisible(False)
         self.btn2.setVisible(False)
         form_layout.addLayout(button_layout)
+        form_layout.addSpacing(16)
 
         # 初始化串口监听（端口从配置读取，下次启动测试时生效）
         self.listening = True  # 状态变量：是否正在监听串口
@@ -146,71 +148,77 @@ class TestViewWidget_1(QWidget):
         self.serial_reader.data_received.connect(self.handle_data)
 
 
-        def add_label_input(label_text, input_widget=None):
-            layout = QHBoxLayout()
-            label = QLabel(label_text)
-            label.setFont(font)
-            label.setFixedWidth(200)
-            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-            if input_widget is None:
-                input_widget = QLineEdit()
-            input_widget.setFont(font)
-            input_widget.setFixedHeight(28)
-
-            layout.addWidget(label)
-            layout.addWidget(input_widget)
-            form_layout.addLayout(layout)
-            self.inputs[label_text.strip("").strip('：').split('(')[0]] = input_widget
-            return input_widget
-
-        # 分组添加内容
-        self.time_input = add_label_input("试验时间：")
-
-        user = add_label_input("用户：", QComboBox())
-        # TODO:这些都要改成从配置文件读取
-        user.addItems(["管理员1", "管理员2"])
-        user.setCurrentIndex(0)
-        user.setEditable(True)
-        inputManager.set_value(self.input_manager, "用户", "管理员1")
-
-        lang_points = add_label_input("吊点代号：", QComboBox())
-        lang_points.addItems([f"{i:02d}" for i in range(1, 21)])
-        lang_points.setCurrentIndex(0)
-        inputManager.set_value(self.input_manager, "吊点代号", "01")
-        
-        add_label_input("出厂编号：")
-        add_label_input("型号规格：")
-        add_label_input("工作载荷(kN): ")
-        add_label_input("工作位移：")
-
-        operator = add_label_input("操作员：", QComboBox())
-        operator.addItems(["刘云佳", "张三", "李四"])
-        operator.setCurrentIndex(0)
-        operator.setEditable(True)
-        inputManager.set_value(self.input_manager, "操作员", "刘云佳")
-        checker = add_label_input("检验员：", QComboBox())
-        checker.addItems(["陈广春", "王五", "赵六"])
-        checker.setCurrentIndex(0)
-        checker.setEditable(True)
-        inputManager.set_value(self.input_manager, "检验员", "陈广春")
-
-        direction = add_label_input("位移方向：", QComboBox())
-        direction.addItems(["上", "下", "左", "右"])
-        direction.setCurrentIndex(0)
-        inputManager.set_value(self.input_manager, "位移方向", "上")
-
-        add_label_input("总位移(mm): ")
-        add_label_input("位移起始点值")
-        add_label_input("位移终止点值")
-        add_label_input("实测位移值")
-        add_label_input("超载试验值(kN)")
-        add_label_input("起始-终止时间")
-        add_label_input("超载试验保持时间")
-        add_label_input("恒定度")
-        add_label_input("锁定位置")
-        add_label_input("载荷偏差度")
-        add_label_input("测试结果")
+        # 所有表单字段统一放入表格（两列：名称 + 值）
+        # 每项: (标签文本, 存储key, 控件类型, 可选配置)
+        table_rows = [
+            ("试验时间：", "试验时间", "label", None),
+            ("用户：", "用户", "combobox", {"items": ["管理员1", "管理员2"], "default": "管理员1"}),
+            ("吊点代号：", "吊点代号", "combobox", {"items": [f"{i:02d}" for i in range(1, 21)], "default": "01"}),
+            ("出厂编号：", "出厂编号", "lineedit", None),
+            ("型号规格：", "型号规格", "lineedit", None),
+            ("工作载荷(kN): ", "工作载荷", "lineedit", None),
+            ("工作位移：", "工作位移", "lineedit", None),
+            ("操作员：", "操作员", "combobox", {"items": ["刘云佳", "张三", "李四"], "default": "刘云佳"}),
+            ("检验员：", "检验员", "combobox", {"items": ["陈广春", "王五", "赵六"], "default": "陈广春"}),
+            ("位移方向：", "位移方向", "combobox", {"items": ["上", "下", "左", "右"], "default": "上"}),
+            ("总位移(mm): ", "总位移", "label", None),
+            ("位移起始点值", "位移起始点值", "label", None),
+            ("位移终止点值", "位移终止点值", "label", None),
+            ("实测位移值", "实测位移值", "label", None),
+            ("超载试验值(kN)", "超载试验值", "label", None),
+            ("起始-终止时间", "起始-终止时间", "label", None),
+            ("超载试验保持时间", "超载试验保持时间", "label", None),
+            ("恒定度", "恒定度", "label", None),
+            ("锁定位置", "锁定位置", "label", None),
+            ("载荷偏差度", "载荷偏差度", "label", None),
+            ("测试结果", "测试结果", "label", None),
+        ]
+        result_table = QTableWidget(len(table_rows), 2)
+        result_table.horizontalHeader().setVisible(False)
+        result_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        result_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        result_table.verticalHeader().setVisible(False)
+        result_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        result_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        result_table.setShowGrid(True)
+        result_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        result_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        result_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid black;
+                gridline-color: black;
+            }
+            QTableWidget::item {
+                border: 1px solid black;
+            }
+        """)
+        for row, item in enumerate(table_rows):
+            label_text, key, widget_type, cfg = item if len(item) == 4 else (*item[:3], None)
+            # 左列：名称
+            label_widget = QLabel(label_text)
+            label_widget.setFont(font)
+            label_widget.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            result_table.setCellWidget(row, 0, label_widget)
+            # 右列：值
+            if widget_type == "lineedit":
+                value_widget = QLineEdit()
+            elif widget_type == "combobox":
+                value_widget = QComboBox()
+                value_widget.addItems(cfg["items"])
+                value_widget.setCurrentText(cfg["default"])
+                value_widget.setEditable(True)
+                inputManager.set_value(self.input_manager, key, cfg["default"])
+            else:
+                value_widget = QLabel()
+                value_widget.setStyleSheet("background-color: #F0F0F0;")
+            value_widget.setFont(font)
+            value_widget.setMinimumHeight(28)
+            if isinstance(value_widget, QLabel):
+                value_widget.setAlignment(Qt.AlignCenter)
+            result_table.setCellWidget(row, 1, value_widget)
+            self.inputs[key] = value_widget
+        self.time_input = self.inputs["试验时间"]
+        form_layout.addWidget(result_table, 1)
         self.bind_signals()
 
         return form_layout
@@ -334,18 +342,9 @@ class TestViewWidget_1(QWidget):
             self.set_x_range(base * 0.5, base * 2)
             line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
-            self.inputs["恒定度"].setText("")
-            self.inputs["总位移"].setText("")
-            self.inputs["位移终止点值"].setText("")
-            self.inputs["位移起始点值"].setText("")
-            self.inputs["实测位移值"].setText("")
-            self.inputs["载荷偏差度"].setText("")
-            self.inputs["超载试验值"].setText("")
-            self.inputs["起始-终止时间"].setText("")
-            self.inputs["超载试验保持时间"].setText("")
-            self.inputs["锁定位置"].setText("")
-            self.inputs["测试结果"].setText("")
-            self.inputs["锁定位置"].setText("")
+            for key in ["恒定度", "总位移", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
+                self.inputs[key].setText("")
+                self.input_manager.set_value(key, "")
             self.plot_widget.addItem(line1)
             self.plot_widget.addItem(line2)
             # # 开始生成数据
@@ -409,7 +408,9 @@ class TestViewWidget_1(QWidget):
             
             # 更新表单中的时间字段
             self.inputs["起始-终止时间"].setText(f"{start_time_str}-{end_time_str}")
+            self.input_manager.set_value("起始-终止时间", f"{start_time_str}-{end_time_str}")
             self.inputs["超载试验保持时间"].setText(duration_str)
+            self.input_manager.set_value("超载试验保持时间", duration_str)
             
             # # 测试结束后重新分析完整图形并重新排列标签
             self.reanalyze_and_rearrange_labels()
@@ -425,38 +426,52 @@ class TestViewWidget_1(QWidget):
             overload_factor = random.uniform(1.8, 2.0)
             overload_value = int(working_load * overload_factor)
             self.inputs["超载试验值"].setText(str(overload_value))
+            self.input_manager.set_value("超载试验值", str(overload_value))
         except (ValueError, TypeError):
             # 如果工作载荷无效，设置为空
             self.inputs["超载试验值"].setText("")
+            self.input_manager.set_value("超载试验值", "")
         
         # 计算一些值
         # 写入恒定度
         constancy = calculate_constancy(self._record_dot_x)
         self.inputs["恒定度"].setText(f"{constancy:.4f}%")
+        self.input_manager.set_value("恒定度", f"{constancy:.4f}%")
         # TODO:
         # 确认工作位移如何计算？
         # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
         # 正确应该是从工作位移的值出发
         total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
         self.inputs["总位移"].setText(f"{total_displacement:.2f}")
+        self.input_manager.set_value("总位移", f"{total_displacement:.2f}")
         # 写入位移终止点值（取最大的y值，即最大位移值）
         end_value = max(self._record_dot_y) if self._record_dot_y else 0
-        self.inputs["位移终止点值"].setText(f"{end_value:.2f}" if self._record_dot_y else "0.00")
+        end_str = f"{end_value:.2f}" if self._record_dot_y else "0.00"
+        self.inputs["位移终止点值"].setText(end_str)
+        self.input_manager.set_value("位移终止点值", end_str)
         # 写入位移起始点值
         start_value = self._record_dot_y[0]
-        self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
+        start_str = f"{start_value:.2f}" if self._record_dot_y else "0.00"
+        self.inputs["位移起始点值"].setText(start_str)
+        self.input_manager.set_value("位移起始点值", start_str)
         # 写入实测位移值
         real_value = end_value - start_value
-        self.inputs["实测位移值"].setText(f"{real_value:.2f}")
+        real_str = f"{real_value:.2f}"
+        self.inputs["实测位移值"].setText(real_str)
+        self.input_manager.set_value("实测位移值", real_str)
         # 写入载荷偏差度
         base = self.input_manager.get_value("工作载荷")
         if base != 0:
             load_values = calculate_load_deviation(float(base), self._record_dot_x)
-            self.inputs["载荷偏差度"].setText(f"{load_values:.2f}%")
+            load_str = f"{load_values:.2f}%"
+            self.inputs["载荷偏差度"].setText(load_str)
+            self.input_manager.set_value("载荷偏差度", load_str)
         # 写入锁定位置（实测位移值 / 去0时记录的y位置到最大y值的距离）
         y_max = max(self._record_dot_y) if self._record_dot_y else 0
         lock_position = calculate_lock_position(real_value, y_max)
-        self.inputs["锁定位置"].setText(f"{lock_position:.2f}" if lock_position is not None else "")
+        lock_str = f"{lock_position:.2f}" if lock_position is not None else ""
+        self.inputs["锁定位置"].setText(lock_str)
+        self.input_manager.set_value("锁定位置", lock_str)
 
     def create_chart(self, x: list, y: list, x_center=5000, y_center=5000):
         self.plot_widget = pg.PlotWidget()
