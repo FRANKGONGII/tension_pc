@@ -25,6 +25,16 @@ def _get_system_printers():
         return []
 
 
+def _get_available_serial_ports():
+    """获取系统可用的串口端口列表"""
+    try:
+        import serial.tools.list_ports
+        ports = serial.tools.list_ports.comports()
+        return sorted([p.device for p in ports])
+    except Exception:
+        return []
+
+
 class ConfigDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -61,10 +71,17 @@ class ConfigDialog(QDialog):
         save_layout.addWidget(browse_btn)
         form.addRow("打印文件保存根目录：", save_layout)
 
-        # 串口端口
-        self.port_edit = QLineEdit()
-        self.port_edit.setPlaceholderText("例如：COM7")
-        form.addRow("数据读取端口：", self.port_edit)
+        # 串口端口：下拉选择系统可用端口，也可手动输入
+        self.port_edit = QComboBox()
+        self.port_edit.setEditable(True)
+        self.port_edit.setMinimumWidth(200)
+        port_layout = QHBoxLayout()
+        port_layout.addWidget(self.port_edit)
+        port_refresh_btn = QPushButton("刷新")
+        port_refresh_btn.setToolTip("重新获取可用串口列表")
+        port_refresh_btn.clicked.connect(self._refresh_ports)
+        port_layout.addWidget(port_refresh_btn)
+        form.addRow("数据读取端口：", port_layout)
 
         layout.addLayout(form)
 
@@ -91,6 +108,19 @@ class ConfigDialog(QDialog):
             else:
                 self.printer_edit.setCurrentText(current)
 
+    def _refresh_ports(self):
+        """从系统获取可用串口列表并填充下拉框"""
+        ports = _get_available_serial_ports()
+        current = self.port_edit.currentText().strip()
+        self.port_edit.clear()
+        self.port_edit.addItems(ports)
+        if current:
+            idx = self.port_edit.findText(current)
+            if idx >= 0:
+                self.port_edit.setCurrentIndex(idx)
+            else:
+                self.port_edit.setCurrentText(current)
+
     def _load_values(self):
         cfg = load_config()
         printers = _get_system_printers()
@@ -103,7 +133,15 @@ class ConfigDialog(QDialog):
         else:
             self.printer_edit.setCurrentText(saved_name)
         self.save_path_edit.setText(cfg["print_save_path"])
-        self.port_edit.setText(cfg["serial_port"])
+        ports = _get_available_serial_ports()
+        self.port_edit.clear()
+        self.port_edit.addItems(ports)
+        saved_port = cfg["serial_port"]
+        idx = self.port_edit.findText(saved_port)
+        if idx >= 0:
+            self.port_edit.setCurrentIndex(idx)
+        else:
+            self.port_edit.setCurrentText(saved_port)
 
     def _browse_save_path(self):
         path = QFileDialog.getExistingDirectory(self, "选择保存目录", self.save_path_edit.text())
@@ -113,7 +151,7 @@ class ConfigDialog(QDialog):
     def _on_accept(self):
         printer = self.printer_edit.currentText().strip()
         save_path = self.save_path_edit.text().strip()
-        port = self.port_edit.text().strip()
+        port = self.port_edit.currentText().strip()
         if not printer:
             from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "提示", "请输入打印机名称。")
