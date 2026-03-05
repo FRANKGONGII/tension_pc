@@ -844,18 +844,14 @@ class TestViewWidget_1(QWidget):
                     if target > y + 1.0:  # 还未到达，后续目标更远，可提前退出
                         break
             else:
-                # 拉的过程：从最大位移 - 间隔*1, 间隔*2, ... 时打点，数量由工作位移决定
+                # 拉的过程：y和压一样
+                print(_y_max_value, self._highlighted_displacements, y)
                 if self._y_max_value is not None:
-                    for i in range(1, base // self._highlight_step + 1):
-                        target = self._y_max_value - self._highlight_step * i
-                        if -target not in self._highlighted_displacements:
-                            if y <= target + 0.5:  # 允许0.5mm的容差
+                    for index, value in enumerate(self._highlighted_displacements):
+                        # if -value not in self._highlighted_displacements:
+                            if (y - value) < 0.05 and (y - value) > 0:
                                 should_highlight = True
                                 highlight_side = "left"
-                                target_displacement = -target
-                                break
-                        if target < y - 1.0:  # 还未到达，后续目标更远，可提前退出
-                            break
             
             if should_highlight and target_displacement is not None:
                 self._highlighted_displacements.add(target_displacement)
