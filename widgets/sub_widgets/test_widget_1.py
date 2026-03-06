@@ -24,6 +24,13 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 import numpy as np
 import random
 
+SCALE_MAP = {
+    10240: (0, 10, 0, 500),
+    18432: (0, 200, 0, 500),
+    34816: (0, 400, 0, 500),
+}
+DEFAULT_SCALE = (0, 200, 0, 500)
+
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
     received_data_changed = pyqtSignal(object)
@@ -71,6 +78,7 @@ class TestViewWidget_1(QWidget):
     _has_saved = False  # 当前测试数据是否已入库，用于防止重复入库
     _existing_file_path = None
     _test_result = True
+    _scale_switched = False
 
     def __init__(self):
         super().__init__()
@@ -80,9 +88,11 @@ class TestViewWidget_1(QWidget):
         self.if_start = True
         self.restart = False
         self.plot_widget = pg.PlotWidget()
-        # x轴范围变量
+        # 轴范围变量
         self.current_x_min = 0
         self.current_x_max = 200
+        self.current_y_min = 0
+        self.current_y_max = 500
 
         # 整体布局：上方左右 + 下方表格
         main_layout = QHBoxLayout()
@@ -310,6 +320,7 @@ class TestViewWidget_1(QWidget):
             self._record_dot_highlight = []
             self._record_dot_side = []
             self._has_saved = False  # 新测试开始，重置入库标记
+            self._scale_switched = False
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
@@ -343,9 +354,6 @@ class TestViewWidget_1(QWidget):
                 self.restart = False
             # 插入边界线
             base = float(self.input_manager.get_value("工作载荷"))
-            # print("载荷", base)
-            # 将x轴范围初始化为载荷的0.8-1.2倍
-            self.set_x_range(base * 0.5, base * 2)
             line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
             for key in ["恒定度", "总位移", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
@@ -512,9 +520,8 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.getViewBox().invertY(True)
         self.plot_widget.getViewBox().setMouseEnabled(x=False, y=False)  # 禁用拖拽平移，固定图表
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
-        self.plot_widget.setXRange(0, 200)
-        # 将y轴范围设置为0-500
-        self.plot_widget.setYRange(0, 500)
+        self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+        self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
 
 
     def update_chart(self, x: list, y: list):
@@ -562,8 +569,8 @@ class TestViewWidget_1(QWidget):
         self._record_dot_x = x
         self._cnt_receive_dot = 0
 
-        # 应用当前的x轴范围设置
         self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
+        self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
 
         # 插入边界线
         base = float(self.input_manager.get_value("工作载荷"))
@@ -629,7 +636,7 @@ class TestViewWidget_1(QWidget):
         
         # 设置坐标轴范围
         ax.set_xlim(self.current_x_min, self.current_x_max)
-        ax.set_ylim(0, 500)
+        ax.set_ylim(self.current_y_min, self.current_y_max)
         
         # 设置y轴为0在上（反转y轴）
         ax.invert_yaxis()
@@ -645,13 +652,16 @@ class TestViewWidget_1(QWidget):
         plt.close(fig)  # 关闭图表以释放内存
         
     def set_x_range(self, x_min, x_max):
-        """设置图表的x轴范围"""
         self.current_x_min = x_min
         self.current_x_max = x_max
         if hasattr(self, 'plot_widget'):
             self.plot_widget.setXRange(x_min, x_max)
-            # print(f"已设置x轴范围: {x_min}-{x_max}")
 
+    def set_y_range(self, y_min, y_max):
+        self.current_y_min = y_min
+        self.current_y_max = y_max
+        if hasattr(self, 'plot_widget'):
+            self.plot_widget.setYRange(y_min, y_max)
 
     def on_mouse_moved(self, evt):
         pos = evt
@@ -678,12 +688,16 @@ class TestViewWidget_1(QWidget):
     #     return grid_layout
 
     def handle_data(self, data):
-        x, y = ast.literal_eval(data)
-        # 时刻记录最新的x值，独立于_record_dot_x结构
+        x, y, status = ast.literal_eval(data)
         self._latest_x_value = x
         self._latest_y_value = y
-        
-        # print(self.adjust_center, self.adjust_number)
+
+        if not self._scale_switched and self.serial_reader._sending_data:
+            scale = SCALE_MAP.get(status, DEFAULT_SCALE)
+            self.set_x_range(scale[0], scale[1])
+            self.set_y_range(scale[2], scale[3])
+            self._scale_switched = True
+
         if self.adjust_center != -1:
             # print("will adjust number")
             if x < self.adjust_center:
