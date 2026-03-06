@@ -94,3 +94,41 @@ def get_serial_port():
 
 def get_overload_factor():
     return load_config()["overload_factor"]
+
+
+def get_combobox_history(key):
+    """获取某个 combobox 的历史输入列表"""
+    path = _config_path()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        history = cfg.get("combobox_history", {})
+        return history.get(key, [])
+    except Exception:
+        return []
+
+
+def save_combobox_item(key, value):
+    """将 combobox 值追加到历史记录末尾（已存在则移到末尾，保证最后一项是最近使用的）"""
+    value = str(value).strip()
+    if not value:
+        return
+    path = _config_path()
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        else:
+            cfg = {}
+        history = cfg.setdefault("combobox_history", {})
+        items = history.get(key, [])
+        if value in items:
+            items.remove(value)
+        items.append(value)
+        history[key] = items
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass

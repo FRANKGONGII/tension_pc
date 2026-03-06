@@ -191,7 +191,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
 
     table1.rows[1].cells[1].text = safe_str(detail[3]) if detail else ""
     table1.rows[1].cells[3].text = safe_str(detail[8]) + "mm" if detail else ""
-    table1.rows[1].cells[5].text = safe_str(round(float(detail[6]) * 1000)) + "N" if detail else ""
+    table1.rows[1].cells[5].text = safe_str(detail[6]) + "N" if detail else ""
 
     table1.rows[2].cells[1].text = safe_str(detail[4]) if detail else ""
     table1.rows[2].cells[3].text = safe_str(detail[7]) if detail else ""

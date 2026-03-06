@@ -13,7 +13,7 @@ import pyqtgraph as pg
 from pyqtgraph import TextItem
 
 from utils.serial_reader import SerialReader
-from utils.config_manager import get_serial_port, get_overload_factor
+from utils.config_manager import get_serial_port, get_overload_factor, get_combobox_history, save_combobox_item
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
@@ -46,6 +46,7 @@ class TestViewWidget_1(QWidget):
     _record_dot_side = []
     # 记录表单控件
     inputs = {}
+    _history_combobox_keys = set()
     input_manager = inputManager()
     # 数据库
     DataManager = DataManager()
@@ -165,16 +166,16 @@ class TestViewWidget_1(QWidget):
         # 每项: (标签文本, 存储key, 控件类型, 可选配置)
         table_rows = [
             ("试验时间：", "试验时间", "label", None),
-            ("用户：", "用户", "combobox", {"items": ["管理员1", "管理员2"], "default": "管理员1"}),
-            ("吊点代号：", "吊点代号", "combobox", {"items": [f"{i:02d}" for i in range(1, 21)], "default": "01"}),
+            ("用户：", "用户", "combobox", {"items": get_combobox_history("用户"), "default": (get_combobox_history("用户") or [""])[-1], "save_history": True}),
+            ("吊点代号：", "吊点代号", "combobox", {"items": get_combobox_history("吊点代号"), "default": (get_combobox_history("吊点代号") or [""])[-1], "save_history": True}),
             ("出厂编号：", "出厂编号", "lineedit", None),
             ("型号规格：", "型号规格", "lineedit", None),
-            ("工作载荷(kN): ", "工作载荷", "lineedit", None),
+            ("工作载荷(N): ", "工作载荷", "lineedit", None),
+            ("总位移(mm): ", "总位移", "lineedit", None),
             ("工作位移：", "工作位移", "lineedit", None),
             ("操作员：", "操作员", "combobox", {"items": ["刘云佳", "张三", "李四"], "default": "刘云佳"}),
             ("检验员：", "检验员", "combobox", {"items": ["陈广春", "王五", "赵六"], "default": "陈广春"}),
             ("位移方向：", "位移方向", "combobox", {"items": ["上", "下", "左", "右"], "default": "上"}),
-            ("总位移(mm): ", "总位移", "lineedit", None),
             ("位移起始点值", "位移起始点值", "label", None),
             ("位移终止点值", "位移终止点值", "label", None),
             ("实测位移值", "实测位移值", "label", None),
@@ -224,6 +225,8 @@ class TestViewWidget_1(QWidget):
                 value_widget.setCurrentText(cfg["default"])
                 value_widget.setEditable(True)
                 value_widget.lineEdit().setAlignment(Qt.AlignCenter)
+                if cfg.get("save_history"):
+                    self._history_combobox_keys.add(key)
                 inputManager.set_value(self.input_manager, key, cfg["default"])
             else:
                 value_widget = QLabel()
@@ -249,7 +252,6 @@ class TestViewWidget_1(QWidget):
                 widget.currentTextChanged.connect(lambda val, k=key: self.on_input_changed(k, val))
 
     def on_input_changed(self, key, value):
-        # print(f"{key} changed: {value}")
         self.input_manager.set_value(key.split("(")[0], value)
 
     def get_all_data(self):
@@ -303,8 +305,15 @@ class TestViewWidget_1(QWidget):
                 QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
                 return
             
-            # 逻辑处理
-            # print("开始按钮被点击")
+            # 保存历史 combobox 值到配置
+            for hkey in self._history_combobox_keys:
+                val = str(self.inputs[hkey].currentText()).strip()
+                if val:
+                    combo = self.inputs[hkey]
+                    if combo.findText(val) == -1:
+                        combo.addItem(val)
+                    save_combobox_item(hkey, val)
+
             self.btn1.setEnabled(False)
             self.btn2.setEnabled(True)
             self.test_started.emit()
@@ -351,7 +360,7 @@ class TestViewWidget_1(QWidget):
                 self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
                 self.restart = False
             # 插入边界线
-            base = float(self.input_manager.get_value("工作载荷"))
+            base = float(self.input_manager.get_value("工作载荷"))/1000
             line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
             for key in ["恒定度", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
@@ -444,13 +453,13 @@ class TestViewWidget_1(QWidget):
 
         # 计算超载试验值（工作载荷 × 配置系数 + 0.001-0.002倍扰动）
         try:
-            working_load = float(self.input_manager.get_value("工作载荷"))*1000
+            working_load = int(self.input_manager.get_value("工作载荷"))
             base_factor = get_overload_factor()
             perturbation = base_factor * random.uniform(0.001, 0.002)
             overload_factor = base_factor + perturbation
-            overload_value = int(working_load * overload_factor)
-            self.inputs["超载试验值"].setText(str(overload_value))
-            self.input_manager.set_value("超载试验值", str(overload_value))
+            overload_value = working_load * overload_factor
+            self.inputs["超载试验值"].setText(str(round(overload_value)))
+            self.input_manager.set_value("超载试验值", str(round(overload_value)))
         except (ValueError, TypeError):
             # 如果工作载荷无效，设置为空
             self.inputs["超载试验值"].setText("")
@@ -489,7 +498,7 @@ class TestViewWidget_1(QWidget):
         # 写入载荷偏差度
         base = self.input_manager.get_value("工作载荷")
         if base != 0:
-            load_values = calculate_load_deviation(float(base), self._record_dot_x)
+            load_values = calculate_load_deviation(float(base)/1000, self._record_dot_x)
             load_str = f"{load_values:.2f}%"
             self.inputs["载荷偏差度"].setText(load_str)
             self.input_manager.set_value("载荷偏差度", load_str)
@@ -572,7 +581,7 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
 
         # 插入边界线
-        base = float(self.input_manager.get_value("工作载荷"))
+        base = float(self.input_manager.get_value("工作载荷"))/1000
         print("载荷", base)
         line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
         line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
@@ -584,7 +593,7 @@ class TestViewWidget_1(QWidget):
             if highlight[i]:
                 self.highlight_plot(x[i], y[i], side_right[i])
         # 使用matplotlib保存高质量图片
-        self.save_high_res_chart()
+        # self.save_high_res_chart()
 
     def save_high_res_chart(self):
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
@@ -619,7 +628,7 @@ class TestViewWidget_1(QWidget):
             ax.text(label_x, y, f'{x:.3f}', fontsize=14, ha='center', va='top', color='black')
         
         # 绘制工作载荷的上下5%线
-        base = float(self.input_manager.get_value("工作载荷"))
+        base = float(self.input_manager.get_value("工作载荷"))/1000
         ax.axvline(x=base * 1.06, color='red', linestyle='--', linewidth=1.5)
         ax.axvline(x=base * 0.94, color='green', linestyle='--', linewidth=1.5)
         
@@ -722,15 +731,15 @@ class TestViewWidget_1(QWidget):
             
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
-            self.received_data_changed.emit([x, y - self._record_dot_y[0], y - self._y_initial])
+            self.received_data_changed.emit([x, y - self._record_dot_y[0], y])
         else:
             self.received_data_changed.emit([x, 0, 0])
         
         if self.serial_reader._sending_data == False:
             return
         
-        min_value = float(self.input_manager.get_value("工作载荷")) * 0.94
-        max_value = float(self.input_manager.get_value("工作载荷")) * 1.06
+        min_value = float(self.input_manager.get_value("工作载荷"))/1000 * 0.94
+        max_value = float(self.input_manager.get_value("工作载荷"))/1000 * 1.06
         if (x < min_value or x > max_value) and self._y_start_value is not None:
             self._test_result = False
         
@@ -753,7 +762,7 @@ class TestViewWidget_1(QWidget):
             elif y < self._previous_y:
                 self._is_increasing_phase = False  # 位移减少，拉的过程
         self._previous_y = y
-        base = int(self.input_manager.get_value("工作位移")) + self._y_start_value
+        base = int(self.input_manager.get_value("总位移")) + 30
         # 基于工作位移的高亮点逻辑
         should_highlight = False
         highlight_side_right = True
@@ -784,11 +793,11 @@ class TestViewWidget_1(QWidget):
                 # 使用matplotlib保存高质量图片
                 # self.save_high_res_chart()
         
+        # 更新图表
+        self.update_chart(self._record_dot_x, self._record_dot_y)
+        
         # 添加到记录列表
         self._record_dot_x.append(x)
         self._record_dot_y.append(y)
         self._record_dot_highlight.append(should_highlight)
         self._record_dot_side.append(highlight_side_right)
-        
-        # 更新图表
-        self.update_chart(self._record_dot_x, self._record_dot_y)

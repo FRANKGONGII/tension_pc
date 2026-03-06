@@ -61,8 +61,8 @@ class MainWindow(QMainWindow):
         self.data_display = DataDisplayWidget()
 
         # 绑定图表变化信号到数据显示
-        self.chart_widget1.mouse_data_changed.connect(self.data_display.update_data)
-        self.chart_widget2.mouse_data_changed.connect(self.data_display.update_data)
+        # self.chart_widget1.mouse_data_changed.connect(self.data_display.update_data)
+        # self.chart_widget2.mouse_data_changed.connect(self.data_display.update_data)
         self.chart_widget1.received_data_changed.connect(self.data_display.update_data)
         # TODO: 更新widget2
         # self.chart_widget2.received_data_changed.connect(self.data_display.update_data)

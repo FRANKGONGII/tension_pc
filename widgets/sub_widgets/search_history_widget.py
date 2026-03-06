@@ -222,7 +222,7 @@ class SearchHistoryWidget(QWidget):
                         # 其他字段...
                         fields = [
                             (12, "位移起始点值"), (13, "位移终止点值"), (14, "实测位移值"),
-                            (15, "超载试验值"), (16, "起始 - 终止时间"), (17, "超载试验保持时间"),
+                            (15, "超载试验值"), (16, "起始-终止时间"), (17, "超载试验保持时间"),
                             (18, "恒定度"), (19, "锁定位置"), (20, "载荷偏差度")
                         ]
                         for idx, field_name in fields:
@@ -233,13 +233,19 @@ class SearchHistoryWidget(QWidget):
                         else:
                             test_widget.inputs["测试结果"].setText("无结果")
                         #传入导入数据的文件路径，便于直接打印文件
+                        test_widget._existing_file_path = None
                         if detail_data[22]:
                             test_widget._existing_file_path = detail_data[22]
                     
                     # 更新图表数据
                     if hasattr(test_widget, 'rewrite_chart'):
+                        test_widget._record_dot_x = x_list
+                        test_widget._record_dot_y = y_list
+                        test_widget._record_dot_highlight = highlight
+                        test_widget._record_dot_side = side_right
                         test_widget.rewrite_chart(x_list, y_list, highlight, side_right)
-
+                        test_widget.save_high_res_chart()
+                        
                     # 设置当前处理的数据ID，便于后续打印
                     self.main_window.now_handle_data_id = int(data_id)
                     # 导入的是已有数据，禁用测试入库按钮并标记为已入库

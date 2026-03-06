@@ -1,5 +1,13 @@
 {
   "printer_name": "Canon iP1188 series",
   "print_save_path": "D:/lcynju/Documents/Projects/2025huitong",
-  "serial_port": "COM7"
+  "serial_port": "COM7",
+  "combobox_history": {
+    "用户": [
+      "海门主蒸汽"
+    ],
+    "吊点代号": [
+      "J0913-35-108"
+    ]
+  }
 }
