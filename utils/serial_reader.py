@@ -23,14 +23,14 @@ class SerialReader(QObject):
         self._test_thread_started = False
         # 程序启动就开始读取数据
         # TODO：正式时启动下面的解除
-        # try:
-        #     self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
-        #     self.thread = threading.Thread(target=self.test)
-        #     self.thread.daemon = True
-        #     self.thread.start()
-        # except serial.SerialException as e:
-        #     print(e)
-        #     self.data_received.emit(f"[串口错误] {e}")
+        try:
+            self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+            self.thread = threading.Thread(target=self.read_data)
+            self.thread.daemon = True
+            self.thread.start()
+        except serial.SerialException as e:
+            print(e)
+            self.data_received.emit(f"[串口错误] {e}")
 
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程

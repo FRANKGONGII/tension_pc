@@ -133,6 +133,7 @@ class TestViewWidget_1(QWidget):
         # 绑定槽函数
         self.btn1.clicked.connect(self.on_start_clicked)
         self.btn2.clicked.connect(self.on_end_clicked)
+        self.btn_zero.clicked.connect(self.on_zero_clicked)
 
         # 设置初始可见性
         self.btn_zero.setVisible(False)
@@ -353,7 +354,7 @@ class TestViewWidget_1(QWidget):
             self.plot_widget.addItem(line2)
             # # 开始生成数据
             # TODO:正式时删除
-            self.serial_reader.start_test_thread()  # 启动测试线程
+            # self.serial_reader.start_test_thread()  # 启动测试线程
             self.serial_reader.start()
             
 
@@ -361,13 +362,14 @@ class TestViewWidget_1(QWidget):
     # 点击结束要计算一些项目，并忽略后续数据
     def on_zero_clicked(self):
         """记录x初始值，用于后续去0"""
+        print(f"尝试记录x初始值: {self._latest_x_value},已记录y初始值: {self._latest_y_value}")
         if self._latest_x_value is not None:
             # 记录最新的x值作为初始值
             # DEBUG：初始值先给个100
-            # self._x_initial = self._latest_x_value
-            # self._y_initial = self._latest_y_value
-            self._x_initial = 0
-            self._y_initial = 0
+            self._x_initial = self._latest_x_value
+            self._y_initial = self._latest_y_value
+            # self._x_initial = 0
+            # self._y_initial = 0
             # self._x_initial = 100
             # print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}")
@@ -418,6 +420,8 @@ class TestViewWidget_1(QWidget):
 
             # # 测试结束后重新分析完整图形并重新排列标签
             self.reanalyze_and_rearrange_labels()
+            
+            self.save_high_res_chart()
 
             # 清空x轴初始值和拔销值
             self._x_initial = 0
@@ -425,8 +429,8 @@ class TestViewWidget_1(QWidget):
             self._pin_pull_value = None
 
             # TODO:正式删除
-            self.serial_reader.stop_test_thread()
-            self.serial_reader.end()
+            # self.serial_reader.stop_test_thread()
+            # sself.serial_reader.end()
 
     def reanalyze_and_rearrange_labels(self):
 
@@ -445,31 +449,32 @@ class TestViewWidget_1(QWidget):
         # 计算一些值
         # 写入恒定度
         constancy = calculate_constancy(self._record_dot_x)
-        self.inputs["恒定度"].setText(f"{constancy:.4f}%")
-        self.input_manager.set_value("恒定度", f"{constancy:.4f}%")
+        self.inputs["恒定度"].setText(f"{constancy:.2f}%")
+        self.input_manager.set_value("恒定度", f"{constancy:.2f}%")
         # TODO:
         # 确认工作位移如何计算？
         # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
         # 正确应该是从工作位移的值出发
         total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
-        self.inputs["总位移"].setText(f"{total_displacement:.2f}")
-        self.input_manager.set_value("总位移", f"{total_displacement:.2f}")
+        self.inputs["总位移"].setText(f"{round(total_displacement)}")
+        self.input_manager.set_value("总位移", f"{round(total_displacement)}")
         # 写入位移终止点值（取最大的y值，即最大位移值）
         end_value = max(self._record_dot_y) if self._record_dot_y else 0
-        end_str = f"{end_value:.2f}" if self._record_dot_y else "0.00"
-        self.inputs["位移终止点值"].setText(end_str)
+        end_value = round(end_value)
+        end_str = f"{end_value}" if round(self._record_dot_y) else "0"
+        self.inputs["位移终止点值"].setText(end_str + "mm")
         self.input_manager.set_value("位移终止点值", end_str)
         # 写入位移起始点值
         start_value = self._y_initial
-        self.inputs["位移起始点值"].setText(f"{start_value:.2f}" if self._record_dot_y else "0.00")
-        start_value = self._record_dot_y[0]
-        start_str = f"{start_value:.2f}" if self._record_dot_y else "0.00"
-        self.inputs["位移起始点值"].setText(start_str)
+        start_value = round(start_value)
+        start_str = f"{start_value}" if round(self._record_dot_y) else "0"
+        self.inputs["位移起始点值"].setText(start_str + "mm")
         self.input_manager.set_value("位移起始点值", start_str)
         # 写入实测位移值
         real_value = end_value - start_value
-        real_str = f"{real_value:.2f}"
-        self.inputs["实测位移值"].setText(real_str)
+        real_value = round(real_value)
+        real_str = f"{real_value}"
+        self.inputs["实测位移值"].setText(real_str + "mm")
         self.input_manager.set_value("实测位移值", real_str)
         # 写入载荷偏差度
         base = self.input_manager.get_value("工作载荷")
@@ -587,8 +592,7 @@ class TestViewWidget_1(QWidget):
         # 绘制数据点
         ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
 
-        # 在整个Y轴范围内均匀选择10个目标Y值，然后分配给左右各5个点
-        n = len(self._record_dot_x)
+        # n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
         highlighted_indices = [i for i, h in enumerate(self._record_dot_highlight) if h]
         highlighted_x = [x_data[i] for i in highlighted_indices]
@@ -693,7 +697,7 @@ class TestViewWidget_1(QWidget):
             # 确保y值不为负
             if y < 0:
                 y = 0
-        print("get data:", x, y,)
+        # print("get data:", x, y,)
             
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
@@ -702,7 +706,7 @@ class TestViewWidget_1(QWidget):
         if self.serial_reader._sending_data == False:
             return
         
-        print("get data last:", x, y)
+        # print("get data last:", x, y)
         self._cnt_receive_dot += 1
         
         # 记录起始点的y值（第一个点）
@@ -721,7 +725,7 @@ class TestViewWidget_1(QWidget):
             elif y < self._previous_y:
                 self._is_increasing_phase = False  # 位移减少，拉的过程
         self._previous_y = y
-        base = int(self.input_manager.get_value("工作位移"))
+        base = int(self.input_manager.get_value("工作位移")) + self._y_start_value
         # 基于工作位移的高亮点逻辑
         should_highlight = False
         highlight_side_right = True
@@ -746,12 +750,11 @@ class TestViewWidget_1(QWidget):
                     self.stack_cnt.pop()
             
             if should_highlight:
-
                 if target_displacement is not None and highlight_side_right:
                     self.stack_cnt.append(target_displacement)
                 self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
-                self.save_high_res_chart()
+                # self.save_high_res_chart()
 
         
         # 更新图表

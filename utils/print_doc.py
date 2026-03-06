@@ -148,13 +148,13 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
         return paragraph
 
     # 添加中文标题（大号宋体，加粗）
-    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=18, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=20, bold=True, style='Heading 1')
 
     # 添加英文公司名（正常宋体）
     add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=14)
 
     # 添加主标题（大号宋体，加粗）
-    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=14, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=16, bold=True, style='Heading 1')
 
     # 添加英文副标题（正常宋体）
     add_centered_text_with_simsun("Constant Hanger Performance Test Record", font_size=12)
@@ -191,7 +191,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
 
     table1.rows[1].cells[1].text = safe_str(detail[3]) if detail else ""
     table1.rows[1].cells[3].text = safe_str(detail[8]) + "mm" if detail else ""
-    table1.rows[1].cells[5].text = safe_str(detail[6]) + "N" if detail else ""
+    table1.rows[1].cells[5].text = safe_str(detail[6] * 1000) + "N" if detail else ""
 
     table1.rows[2].cells[1].text = safe_str(detail[4]) if detail else ""
     table1.rows[2].cells[3].text = safe_str(detail[7]) if detail else ""
@@ -288,7 +288,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     bottom_table.cell(0, 1).text = safe_str(detail[18]) if detail else ""
     bottom_table.cell(0, 2).text = "锁定位置\nLoad tolerance"
     bottom_table.cell(0, 3).text = safe_str(detail[19]) if detail else ""
-    bottom_table.cell(0, 4).text = "荷载偏差度\nTest result"
+    bottom_table.cell(0, 4).text = "载荷偏差度\nTest result"
     bottom_table.cell(0, 5).text = safe_str(detail[20]) if detail else ""
     bottom_table.cell(0, 6).text = "测试结果\nTest result"
     bottom_table.cell(0, 7).text = safe_str(detail[21]) if detail else ""
