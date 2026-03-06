@@ -82,6 +82,7 @@ class TestViewWidget_1(QWidget):
     _existing_file_path = None
     _test_result = True
     _scale_switched = False
+    _if_accpet_node = True
 
     def __init__(self):
         super().__init__()
@@ -357,7 +358,7 @@ class TestViewWidget_1(QWidget):
                 self.stack_cnt = []
             if self.restart == True:
                 self.plot_widget.clear()
-                self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+                self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
                 self.restart = False
             # 插入边界线
             base = float(self.input_manager.get_value("工作载荷"))/1000
@@ -519,9 +520,9 @@ class TestViewWidget_1(QWidget):
         # 把 curve 存起来，以便后续更新
         self.curve = self.plot_widget.plot(
             x, y,
-            pen=None,
+            pen='b',
             symbol='o',
-            symbolSize=5,
+            symbolSize=0.5,
             symbolBrush='b'
         )
         # 设置移动获取坐标
@@ -572,7 +573,7 @@ class TestViewWidget_1(QWidget):
 
     def rewrite_chart(self, x: list, y: list, highlight: list, side_right: list):
         self.plot_widget.clear()
-        self.curve = self.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+        self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
         self._record_dot_y = y
         self._record_dot_x = x
         self._cnt_receive_dot = 0
@@ -582,7 +583,6 @@ class TestViewWidget_1(QWidget):
 
         # 插入边界线
         base = float(self.input_manager.get_value("工作载荷"))/1000
-        print("载荷", base)
         line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
         line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
         self.plot_widget.addItem(line1)
@@ -606,8 +606,10 @@ class TestViewWidget_1(QWidget):
         # 创建matplotlib图表
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
 
+        # 绘制连线
+        ax.plot(self._record_dot_x, self._record_dot_y, color='blue', linewidth=0.8, alpha=0.7)
         # 绘制数据点
-        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=1, alpha=0.7)
+        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=0.5, alpha=0.7)
 
         # n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
@@ -735,7 +737,10 @@ class TestViewWidget_1(QWidget):
         else:
             self.received_data_changed.emit([x, 0, 0])
         
-        if self.serial_reader._sending_data == False:
+        if not self.serial_reader._sending_data:
+            return
+        if self._if_accpet_node: 
+            self._if_accpet_node = False
             return
         
         min_value = float(self.input_manager.get_value("工作载荷"))/1000 * 0.94

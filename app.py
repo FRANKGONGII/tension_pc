@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
             chart_widget1.stack_cnt = []
             
         chart_widget1.plot_widget.clear()
-        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen=None, symbol='o', symbolSize=5, symbolBrush='b')
+        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=5, symbolBrush='b')
         chart_widget1.restart = False
 
         chart_widget1.time_input.setText("")
@@ -190,6 +190,8 @@ class MainWindow(QMainWindow):
         for key in ["工作位移", "出厂编号", "工作载荷", "恒定度", "总位移", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
             chart_widget1.inputs[key].setText("")
             chart_widget1.input_manager.set_value(key, "")
+        # 清空面板后重新启用开始按钮
+        chart_widget1.btn1.setEnabled(True)
 
     def show_config_dialog(self):
         dialog = ConfigDialog(self)

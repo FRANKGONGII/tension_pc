@@ -237,19 +237,23 @@ class SearchHistoryWidget(QWidget):
                         if detail_data[22]:
                             test_widget._existing_file_path = detail_data[22]
                     
-                    # 更新图表数据
-                    if hasattr(test_widget, 'rewrite_chart'):
+                    if detail_data[22] == None:
                         test_widget._record_dot_x = x_list
                         test_widget._record_dot_y = y_list
                         test_widget._record_dot_highlight = highlight
                         test_widget._record_dot_side = side_right
-                        test_widget.rewrite_chart(x_list, y_list, highlight, side_right)
                         test_widget.save_high_res_chart()
+                        
+                    # 更新图表数据
+                    if hasattr(test_widget, 'rewrite_chart'):
+                        test_widget.rewrite_chart(x_list, y_list, highlight, side_right)
                         
                     # 设置当前处理的数据ID，便于后续打印
                     self.main_window.now_handle_data_id = int(data_id)
                     # 导入的是已有数据，禁用测试入库按钮并标记为已入库
                     test_widget.mark_as_saved()
+                    # 导入后禁用开始按钮，需点击清空面板后再启用
+                    test_widget.btn1.setEnabled(False)
 
             except Exception as e:
                 # print(f"导入数据时出错: {e}")
