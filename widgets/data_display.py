@@ -51,6 +51,6 @@ class DataDisplayWidget(QGroupBox):
         """更新数据显示"""
         # TODO：mm的第一个参数减一下初始位置
         
-        self.label_mm.setText(f"0 | {values[1]:.2f}")
+        self.label_mm.setText(f"{values[1]:.2f} | {values[2]:.2f}")
         self.label_kg.setText(f"{values[0]:.2f}")
         self.label_N.setText(f"{values[0] * 9.8:.2f}")

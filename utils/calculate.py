@@ -20,9 +20,7 @@ def calculate_lock_position(measured_displacement, y_max):
 def calculate_load_deviation(Wg, points):
     if not points:
         return 0.0
-    W_max = max(points)
-    W_min = min(points)
-    Wp = (W_max + W_min) / 2
+    Wp = points[0]
     deviation = abs(Wg - Wp) / Wg * 100
     return deviation
     

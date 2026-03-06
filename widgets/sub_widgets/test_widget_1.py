@@ -34,6 +34,8 @@ DEFAULT_SCALE = (0, 200, 0, 500)
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
     received_data_changed = pyqtSignal(object)
+    test_started = pyqtSignal()   # 点击开始后发射，用于禁用测试入库
+    test_ended = pyqtSignal()    # 点击结束后发射，用于启用测试入库
 
     show_buttons = False
     _show_dot_duration = 10
@@ -172,7 +174,7 @@ class TestViewWidget_1(QWidget):
             ("操作员：", "操作员", "combobox", {"items": ["刘云佳", "张三", "李四"], "default": "刘云佳"}),
             ("检验员：", "检验员", "combobox", {"items": ["陈广春", "王五", "赵六"], "default": "陈广春"}),
             ("位移方向：", "位移方向", "combobox", {"items": ["上", "下", "左", "右"], "default": "上"}),
-            ("总位移(mm): ", "总位移", "label", None),
+            ("总位移(mm): ", "总位移", "lineedit", None),
             ("位移起始点值", "位移起始点值", "label", None),
             ("位移终止点值", "位移终止点值", "label", None),
             ("实测位移值", "实测位移值", "label", None),
@@ -295,14 +297,9 @@ class TestViewWidget_1(QWidget):
             except (ValueError, TypeError):
                 QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
                 return
-                        # 检查是否已输入工作位移
-            try:
-                displacement_value = self.input_manager.get_value("出厂编号")
-                # 确保工作位移不为空且是有效的数字，并且大于0
-                if not displacement_value or float(displacement_value) <= 0:
-                    QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
-                    return
-            except (ValueError, TypeError):
+            # 检查是否已输入出厂编号（字符串，非空即可）
+            factory_number = self.input_manager.get_value("出厂编号")
+            if not factory_number or not str(factory_number).strip():
                 QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
                 return
             
@@ -310,6 +307,7 @@ class TestViewWidget_1(QWidget):
             # print("开始按钮被点击")
             self.btn1.setEnabled(False)
             self.btn2.setEnabled(True)
+            self.test_started.emit()
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.time_input.setText(now_time)
             inputManager.set_value(self.input_manager, "试验时间", now_time)
@@ -356,7 +354,7 @@ class TestViewWidget_1(QWidget):
             base = float(self.input_manager.get_value("工作载荷"))
             line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
             line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
-            for key in ["恒定度", "总位移", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
+            for key in ["恒定度", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
                 self.inputs[key].setText("")
                 self.input_manager.set_value(key, "")
             self.plot_widget.addItem(line1)
@@ -392,6 +390,7 @@ class TestViewWidget_1(QWidget):
             # print("结束按钮被点击")
             self.btn2.setEnabled(False)
             self.btn1.setEnabled(True)
+            self.test_ended.emit()
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
             # 停止测试线程
@@ -432,14 +431,14 @@ class TestViewWidget_1(QWidget):
             
             self.save_high_res_chart()
 
-            # 清空x轴初始值和拔销值
-            self._x_initial = 0
-            self._y_initial = 0
-            self._pin_pull_value = None
+            # # 清空x轴初始值和拔销值
+            # self._x_initial = 0
+            # self._y_initial = 0
+            # self._pin_pull_value = None
 
             # TODO:正式删除
             # self.serial_reader.stop_test_thread()
-            # sself.serial_reader.end()
+            # self.serial_reader.end()
 
     def reanalyze_and_rearrange_labels(self):
 
@@ -466,9 +465,9 @@ class TestViewWidget_1(QWidget):
         # 确认工作位移如何计算？
         # 计算方法是1.2倍工作位移和设计位移+25mm的较大值，注意目前的逻辑是反的
         # 正确应该是从工作位移的值出发
-        total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
-        self.inputs["总位移"].setText(f"{round(total_displacement)}")
-        self.input_manager.set_value("总位移", f"{round(total_displacement)}")
+        # total_displacement = max(1.2 * float(self.inputs["工作位移"].text()), float(self.design_displacement) + 25)
+        # self.inputs["总位移"].setText(f"{round(total_displacement)}")
+        # self.input_manager.set_value("总位移", f"{round(total_displacement)}")
         # 写入位移终止点值（取最大的y值，即最大位移值）
         end_value = max(self._record_dot_y) if self._record_dot_y else 0
         end_value = round(end_value)
@@ -599,7 +598,7 @@ class TestViewWidget_1(QWidget):
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
 
         # 绘制数据点
-        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=5, alpha=0.7)
+        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=1, alpha=0.7)
 
         # n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
@@ -723,7 +722,9 @@ class TestViewWidget_1(QWidget):
             
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
-            self.received_data_changed.emit([x, y - self._record_dot_y[0]])
+            self.received_data_changed.emit([x, y - self._record_dot_y[0], y - self._y_initial])
+        else:
+            self.received_data_changed.emit([x, 0, 0])
         
         if self.serial_reader._sending_data == False:
             return
@@ -782,18 +783,12 @@ class TestViewWidget_1(QWidget):
                 self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
                 # self.save_high_res_chart()
-
-        
-        # 更新图表
-        self.update_chart(self._record_dot_x, self._record_dot_y)
         
         # 添加到记录列表
         self._record_dot_x.append(x)
         self._record_dot_y.append(y)
         self._record_dot_highlight.append(should_highlight)
         self._record_dot_side.append(highlight_side_right)
-
-
-
-
-
+        
+        # 更新图表
+        self.update_chart(self._record_dot_x, self._record_dot_y)

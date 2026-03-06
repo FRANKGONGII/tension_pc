@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_styles()
         # 预期恒定度
-        self.target_constancy_value = 6
+        self.target_constancy_value = 5
         # 正在处理的表单数据id，默认-1，打印用
         self.now_handle_data_id = -1
 
@@ -77,8 +77,11 @@ class MainWindow(QMainWindow):
         self.toolbar.edit_btn.clicked.connect(self.edit_data)
         self.toolbar.print_btn.clicked.connect(self.handle_print_doc)
         self.toolbar.menu_btn.print_doc_signal.connect(lambda _: self.handle_print_doc())  # 菜单打印与工具栏打印同功能
-        self.toolbar.x_range_changed.connect(self.on_x_range_changed)
         self.toolbar.menu_btn.config_clicked.connect(self.show_config_dialog)
+
+        # 开始/结束控制测试入库按钮：点击开始禁用，点击结束启用
+        self.chart_widget1.test_started.connect(lambda: self.toolbar.save_btn.setEnabled(False))
+        self.chart_widget1.test_ended.connect(lambda: self.toolbar.save_btn.setEnabled(True))
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -141,16 +144,6 @@ class MainWindow(QMainWindow):
     def switch_chart_2(self):
         self.stack.setCurrentIndex(2)
         
-    def on_x_range_changed(self, x_min, x_max):
-        """处理x轴范围变化的信号"""
-        if self.stack.currentIndex() == 1:
-            # 当前显示的是TestViewWidget_1
-            self.chart_widget1.set_x_range(x_min, x_max)
-        elif self.stack.currentIndex() == 2:
-            # 如果TestViewWidget_2也需要支持x轴范围调整，可以在这里添加
-            # pass
-            get_logger().debug("TestViewWidget_2暂不支持x轴范围调整")
-
     def history_visible(self):
         self.search_history_widget.handle_search()
         self.dock.setVisible(not self.dock.isVisible())

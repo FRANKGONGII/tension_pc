@@ -110,8 +110,8 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     section = doc.sections[0]
 
     # 设置页边距（单位：英寸），紧凑布局确保一页内
-    section.top_margin = Inches(0.2)
-    section.bottom_margin = Inches(0.2)
+    section.top_margin = Inches(0.1)
+    section.bottom_margin = Inches(0.05)
     section.left_margin = Inches(0.6)
     section.right_margin = Inches(0.6)
 
@@ -148,13 +148,13 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
         return paragraph
 
     # 添加中文标题（大号宋体，加粗）
-    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=20, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=24, bold=True, style='Heading 1')
 
     # 添加英文公司名（正常宋体）
     add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=14)
 
     # 添加主标题（大号宋体，加粗）
-    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=16, bold=True, style='Heading 1')
+    add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=20, bold=True, style='Heading 1')
 
     # 添加英文副标题（正常宋体）
     add_centered_text_with_simsun("Constant Hanger Performance Test Record", font_size=12)
