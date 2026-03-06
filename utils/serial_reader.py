@@ -105,7 +105,7 @@ class SerialReader(QObject):
                                 try:
                                     hex_str = one_record[1:]  # 去掉前导冒号
                                     data_bytes = bytes.fromhex(hex_str)
-
+                                    print(data_bytes.hex())
                                     # 这里根据你前面的结构，3个寄存器数据从第 7 字节开始
                                     # [功能码02 10] [寄存器地址00 00] [寄存器数量00 03] [字节数06]
                                     # => 实际数据部分从索引 7 开始，共 6 个字节（3*2）
@@ -120,7 +120,7 @@ class SerialReader(QObject):
                                             "force": force,
                                             "status": status,
                                         }
-                                        # print(parsed)
+                                        print(parsed)
                                         data = f"({force * 9.8 / 1000}, {distance})"
                                         with open("data.txt", "a") as f:
                                             f.write(data + "\n")

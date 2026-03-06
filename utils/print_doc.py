@@ -191,7 +191,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
 
     table1.rows[1].cells[1].text = safe_str(detail[3]) if detail else ""
     table1.rows[1].cells[3].text = safe_str(detail[8]) + "mm" if detail else ""
-    table1.rows[1].cells[5].text = safe_str(detail[6] * 1000) + "N" if detail else ""
+    table1.rows[1].cells[5].text = safe_str(round(float(detail[6]) * 1000)) + "N" if detail else ""
 
     table1.rows[2].cells[1].text = safe_str(detail[4]) if detail else ""
     table1.rows[2].cells[3].text = safe_str(detail[7]) if detail else ""
@@ -242,8 +242,8 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # Pmax/Pmin不合并
     top_table.cell(0, 6).text = "Pmax"
     top_table.cell(0, 7).text = "Pmin"
-    top_table.cell(1, 6).text = pmax
-    top_table.cell(1, 7).text = pmin
+    top_table.cell(1, 6).text = str(round(float(pmax) * 1000)) + "N" if detail else ""
+    top_table.cell(1, 7).text = str(round(float(pmin) * 1000)) + "N" if detail else ""
     # 检验员
     top_table.cell(0, 8).merge(top_table.cell(1, 9))
     top_table.cell(0, 8).text = "检验员"
@@ -257,19 +257,19 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 其余内容为一个2x6表格
     main_table = doc.add_table(rows=2, cols=6)
     main_table.style = 'Table Grid'
-    main_col_widths = [Inches(1.05), Inches(0.8), Inches(1.35), Inches(0.9), Inches(1.7), Inches(1.5)]
+    main_col_widths = [Inches(1.05), Inches(0.8), Inches(1.35), Inches(0.9), Inches(2.0), Inches(1.4)]
     for i, width in enumerate(main_col_widths):
         for row in main_table.rows:
             row.cells[i].width = width
     main_table.cell(0, 0).text = "位移起始点值\nInitial point"
-    main_table.cell(0, 1).text = safe_str(detail[12]) if detail else ""
+    main_table.cell(0, 1).text = safe_str(detail[12]) + "mm" if detail else ""
     main_table.cell(0, 2).text = "位移终止点值\nFinishing point"
-    main_table.cell(0, 3).text = safe_str(detail[13]) if detail else ""
+    main_table.cell(0, 3).text = safe_str(detail[13]) + "mm" if detail else ""
     main_table.cell(0, 4).text = "实测位移值\nActual travel"
-    main_table.cell(0, 5).text = safe_str(detail[14]) if detail else ""
+    main_table.cell(0, 5).text = safe_str(detail[14]) + "mm" if detail else ""
 
     main_table.cell(1, 0).text = "超载实验值\nOverload\ntest data"
-    main_table.cell(1, 1).text = safe_str(detail[15]) if detail else ""
+    main_table.cell(1, 1).text = safe_str(detail[15]) + "N" if detail else ""
     main_table.cell(1, 2).text = "超载起始-终止时间\ntime of\nstarting-finishing"
     main_table.cell(1, 3).text = safe_str(detail[16]) if detail else ""
     main_table.cell(1, 4).text = "超载实验保持时间\nDuration within\noverload test"
@@ -281,7 +281,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 最后一个1行的表格，4个内容（自动适应页面宽度与上方表格一致）
     bottom_table = doc.add_table(rows=1, cols=8)
     bottom_table.style = 'Table Grid'
-    bottom_col_widths = [Inches(1.1), Inches(0.725), Inches(1.5), Inches(0.425), Inches(1.1), Inches(0.625), Inches(1.3), Inches(0.525)]
+    bottom_col_widths = [Inches(1.1), Inches(0.725), Inches(1.5), Inches(0.425), Inches(1.1), Inches(0.625), Inches(1.5), Inches(0.325)]
     for i, width in enumerate(bottom_col_widths):
         bottom_table.cell(0, i).width = width
     bottom_table.cell(0, 0).text = "恒定度\nConstant rate"

@@ -233,23 +233,20 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "提示", "入库成功！")
 
     def edit_data(self):
-        x = self.chart_widget1._record_dot_x
-        y = self.chart_widget1._record_dot_y
-        if not x or not y:
-            QMessageBox.warning(self, "提示", "需要完成测试后才能进行数据编辑。")
-            return
+        x = self.chart_widget1._record_dot_x or []
         self.on_adjust_scale_clicked(points=x)
 
     def on_adjust_scale_clicked(self, points: []):
-        # 示例数据（你应从实际数据获取）
-        min_val = min(points)
-        max_val = max(points)
-        constancy = self.calculate_constancy(points)  # 自定义的恒定度计算
-        # 弹出对话框
+        if points:
+            min_val = min(points)
+            max_val = max(points)
+            constancy = self.calculate_constancy(points)
+        else:
+            min_val = max_val = constancy = None
         dialog = ScaleAdjustDialog(self)
         dialog.set_data_stats(min_val, max_val, constancy)
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec_() == QDialog.Accepted and points and constancy is not None:
             new_x = self.try_scaling(points, constancy)
 
     # TODO: 想一个好一点的方法处理

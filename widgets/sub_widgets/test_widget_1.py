@@ -13,7 +13,7 @@ import pyqtgraph as pg
 from pyqtgraph import TextItem
 
 from utils.serial_reader import SerialReader
-from utils.config_manager import get_serial_port
+from utils.config_manager import get_serial_port, get_overload_factor
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
@@ -70,6 +70,7 @@ class TestViewWidget_1(QWidget):
     _previous_y = None  # 上一个y值，用于判断位移变化趋势
     _has_saved = False  # 当前测试数据是否已入库，用于防止重复入库
     _existing_file_path = None
+    _test_result = True
 
     def __init__(self):
         super().__init__()
@@ -387,9 +388,6 @@ class TestViewWidget_1(QWidget):
             self.serial_reader.stop()
             # 停止测试线程
             # self.serial_reader.stop_test_thread()
-            # 清空x轴初始值
-            self._x_initial = 0
-            self._y_initial = 0
             
             # 计算时间相关值
             import random
@@ -417,6 +415,9 @@ class TestViewWidget_1(QWidget):
             self.input_manager.set_value("起始-终止时间", f"{start_time_str}-{end_time_str}")
             self.inputs["超载试验保持时间"].setText(duration_str)
             self.input_manager.set_value("超载试验保持时间", duration_str)
+            self.inputs["测试结果"].setText("合格" if self._test_result else "不合格")
+            self.input_manager.set_value("测试结果", "合格" if self._test_result else "不合格")
+            self._test_result = True
 
             # # 测试结束后重新分析完整图形并重新排列标签
             self.reanalyze_and_rearrange_labels()
@@ -434,10 +435,12 @@ class TestViewWidget_1(QWidget):
 
     def reanalyze_and_rearrange_labels(self):
 
-        # 计算超载试验值（工作载荷的1.8-2.0倍随机整数）
+        # 计算超载试验值（工作载荷 × 配置系数 + 0.001-0.002倍扰动）
         try:
-            working_load = float(self.input_manager.get_value("工作载荷"))
-            overload_factor = random.uniform(1.8, 2.0)
+            working_load = float(self.input_manager.get_value("工作载荷"))*1000
+            base_factor = get_overload_factor()
+            perturbation = base_factor * random.uniform(0.001, 0.002)
+            overload_factor = base_factor + perturbation
             overload_value = int(working_load * overload_factor)
             self.inputs["超载试验值"].setText(str(overload_value))
             self.input_manager.set_value("超载试验值", str(overload_value))
@@ -461,13 +464,13 @@ class TestViewWidget_1(QWidget):
         # 写入位移终止点值（取最大的y值，即最大位移值）
         end_value = max(self._record_dot_y) if self._record_dot_y else 0
         end_value = round(end_value)
-        end_str = f"{end_value}" if round(self._record_dot_y) else "0"
+        end_str = f"{end_value}"
         self.inputs["位移终止点值"].setText(end_str + "mm")
         self.input_manager.set_value("位移终止点值", end_str)
         # 写入位移起始点值
-        start_value = self._y_initial
+        start_value = self._y_start_value
         start_value = round(start_value)
-        start_str = f"{start_value}" if round(self._record_dot_y) else "0"
+        start_str = f"{start_value}"
         self.inputs["位移起始点值"].setText(start_str + "mm")
         self.input_manager.set_value("位移起始点值", start_str)
         # 写入实测位移值
@@ -484,8 +487,7 @@ class TestViewWidget_1(QWidget):
             self.inputs["载荷偏差度"].setText(load_str)
             self.input_manager.set_value("载荷偏差度", load_str)
         # 写入锁定位置（实测位移值 / 去0时记录的y位置到最大y值的距离）
-        y_max = max(self._record_dot_y) if self._record_dot_y else 0
-        lock_position = calculate_lock_position(real_value, y_max)
+        lock_position = calculate_lock_position(int(self.input_manager.get_value("工作位移")), real_value)
         lock_str = f"{lock_position:.2f}" if lock_position is not None else ""
         self.inputs["锁定位置"].setText(lock_str)
         self.input_manager.set_value("锁定位置", lock_str)
@@ -564,7 +566,7 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
 
         # 插入边界线
-        base = int(self.input_manager.get_value("工作载荷"))
+        base = float(self.input_manager.get_value("工作载荷"))
         print("载荷", base)
         line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
         line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
@@ -620,6 +622,10 @@ class TestViewWidget_1(QWidget):
         ax.set_xlabel('载荷Load(kN)', fontsize=14)
         ax.set_ylabel('位移Travel(mm)', fontsize=14)
         ax.tick_params(axis='both', labelsize=14)
+        # 将x轴移到上方
+        ax.xaxis.tick_top()
+        ax.xaxis.set_label_position('top')
+        ax.tick_params(axis='x', bottom=False, top=True, labelbottom=False, labeltop=True)
         
         # 设置坐标轴范围
         ax.set_xlim(self.current_x_min, self.current_x_max)
@@ -698,6 +704,8 @@ class TestViewWidget_1(QWidget):
             if y < 0:
                 y = 0
         # print("get data:", x, y,)
+        
+    
             
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
@@ -705,6 +713,11 @@ class TestViewWidget_1(QWidget):
         
         if self.serial_reader._sending_data == False:
             return
+        
+        min_value = float(self.input_manager.get_value("工作载荷")) * 0.94
+        max_value = float(self.input_manager.get_value("工作载荷")) * 1.06
+        if (x < min_value or x > max_value) and self._y_start_value is not None:
+            self._test_result = False
         
         # print("get data last:", x, y)
         self._cnt_receive_dot += 1

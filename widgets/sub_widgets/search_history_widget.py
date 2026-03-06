@@ -223,11 +223,15 @@ class SearchHistoryWidget(QWidget):
                         fields = [
                             (12, "位移起始点值"), (13, "位移终止点值"), (14, "实测位移值"),
                             (15, "超载试验值"), (16, "起始 - 终止时间"), (17, "超载试验保持时间"),
-                            (18, "恒定度"), (19, "锁定位置"), (20, "载荷偏差度"), (21, "测试结果")
+                            (18, "恒定度"), (19, "锁定位置"), (20, "载荷偏差度")
                         ]
                         for idx, field_name in fields:
                             if detail_data[idx] and field_name in test_widget.inputs:
                                 test_widget.inputs[field_name].setText(detail_data[idx])
+                        if detail_data[21]:
+                            test_widget.inputs["测试结果"].setText(detail_data[21])
+                        else:
+                            test_widget.inputs["测试结果"].setText("无结果")
                         #传入导入数据的文件路径，便于直接打印文件
                         if detail_data[22]:
                             test_widget._existing_file_path = detail_data[22]

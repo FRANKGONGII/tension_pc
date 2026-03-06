@@ -7,6 +7,7 @@ CONFIG_FILENAME = "app_config.json"
 DEFAULT_PRINTER = "Canon iP1188 series"
 DEFAULT_SAVE_PATH = ""
 DEFAULT_SERIAL_PORT = "COM7"
+DEFAULT_OVERLOAD_FACTOR = 2.5
 
 
 def _config_path():
@@ -23,24 +24,35 @@ def load_config():
             "printer_name": DEFAULT_PRINTER,
             "print_save_path": DEFAULT_SAVE_PATH or os.getcwd(),
             "serial_port": DEFAULT_SERIAL_PORT,
+            "overload_factor": DEFAULT_OVERLOAD_FACTOR,
         }
     try:
         with open(path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
+        # 兼容旧配置：若只有 overload_factor_min/max，取其平均值
+        if "overload_factor" in cfg:
+            of = float(cfg["overload_factor"])
+        elif "overload_factor_min" in cfg and "overload_factor_max" in cfg:
+            of = (float(cfg["overload_factor_min"]) + float(cfg["overload_factor_max"])) / 2
+        else:
+            of = DEFAULT_OVERLOAD_FACTOR
         return {
             "printer_name": cfg.get("printer_name", DEFAULT_PRINTER),
             "print_save_path": cfg.get("print_save_path") or os.getcwd(),
             "serial_port": cfg.get("serial_port", DEFAULT_SERIAL_PORT),
+            "overload_factor": of,
         }
     except Exception:
         return {
             "printer_name": DEFAULT_PRINTER,
             "print_save_path": os.getcwd(),
             "serial_port": DEFAULT_SERIAL_PORT,
+            "overload_factor": DEFAULT_OVERLOAD_FACTOR,
         }
 
 
-def save_config(printer_name=None, print_save_path=None, serial_port=None):
+def save_config(printer_name=None, print_save_path=None, serial_port=None,
+                overload_factor=None):
     """保存配置（仅更新传入的字段）"""
     path = _config_path()
     cfg = load_config()
@@ -50,6 +62,8 @@ def save_config(printer_name=None, print_save_path=None, serial_port=None):
         cfg["print_save_path"] = str(print_save_path).strip() or os.getcwd()
     if serial_port is not None:
         cfg["serial_port"] = str(serial_port).strip() or DEFAULT_SERIAL_PORT
+    if overload_factor is not None:
+        cfg["overload_factor"] = float(overload_factor)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
@@ -76,3 +90,7 @@ def get_print_save_dir_for_today():
 
 def get_serial_port():
     return load_config()["serial_port"]
+
+
+def get_overload_factor():
+    return load_config()["overload_factor"]
