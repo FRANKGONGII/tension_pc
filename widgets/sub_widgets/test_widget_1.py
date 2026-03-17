@@ -1,4 +1,5 @@
 import ast
+import statistics
 import sys
 from datetime import datetime
 
@@ -83,6 +84,8 @@ class TestViewWidget_1(QWidget):
     _test_result = True
     _scale_switched = False
     _if_accpet_node = True
+    _filter_x_window = []
+    _FILTER_WINDOW_N = 5
 
     def __init__(self):
         super().__init__()
@@ -329,6 +332,7 @@ class TestViewWidget_1(QWidget):
             self._record_dot_side = []
             self._has_saved = False  # 新测试开始，重置入库标记
             self._scale_switched = False
+            self._filter_x_window = []
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
@@ -727,10 +731,18 @@ class TestViewWidget_1(QWidget):
             # 确保y值不为负
             if y < 0:
                 y = 0
-        # print("get data:", x, y,)
-        
-    
-            
+
+        # 滑动窗口滤波（仅对力值 x，抑制极端值）
+        if len(self._filter_x_window) == 0:
+            self._filter_x_window = [x] * self._FILTER_WINDOW_N
+            x_filtered = x
+        else:
+            self._filter_x_window.append(x)
+            if len(self._filter_x_window) > self._FILTER_WINDOW_N:
+                self._filter_x_window.pop(0)
+            x_filtered = statistics.median(self._filter_x_window)
+        x = x_filtered
+
         # 发射处理后的数据到data_display
         if self._record_dot_y is not None and len(self._record_dot_y) > 0:
             self.received_data_changed.emit([x, y - self._record_dot_y[0], y])
