@@ -1,4 +1,8 @@
 import os
+import subprocess
+import sys
+
+from PyQt5.QtWidgets import QApplication, QFileDialog
 
 from utils.config_manager import get_printer_name, get_print_save_dir_for_today
 from docx import Document
@@ -7,6 +11,11 @@ from docx.oxml import OxmlElement
 from docx.oxml.shared import qn
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+class PrintCancelled(Exception):
+    """用户取消打印时抛出"""
+    pass
+
 
 def print_doc(now_handle_data_id=-1, existing_file_path=None):
     from docx import Document
@@ -96,6 +105,14 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     x_list, y_list, highlight, side_right = DataManager.queryTestDataByFormId(now_handle_data_id)
     if not x_list or not y_list:
         return
+    
+    # 保存 Word 文件（使用配置的根目录/年份/月份/）
+    save_dir = get_print_save_dir_for_today()
+    # 出厂编号+测试时间，避免同出厂编号多次测试时文件名冲突
+    test_time_safe = (str(detail[1]) if detail[1] else "").replace(":", "-").replace(" ", "_").replace("/", "-")
+    time_suffix = f"-{test_time_safe}" if test_time_safe else ""
+    filename = f"恒力吊架性能试验记录-{detail[4]}{time_suffix}.docx"
+    full_path = os.path.abspath(os.path.join(save_dir, filename))
 
     # 创建文档
     doc = Document()
@@ -109,19 +126,24 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 获取第一个节（默认文档只有一个节）
     section = doc.sections[0]
 
+    # 设置页面为 A4 纸（210mm × 297mm）
+    section.page_width = Inches(8.27)
+    section.page_height = Inches(11.69)
+
     # 设置页边距（单位：英寸），紧凑布局确保一页内
-    section.top_margin = Inches(0.1)
-    section.bottom_margin = Inches(0.05)
-    section.left_margin = Inches(0.6)
-    section.right_margin = Inches(0.6)
+    section.top_margin = Inches(0.8)
+    section.bottom_margin = Inches(0.2)
+    section.left_margin = Inches(0.45)
+    section.right_margin = Inches(0.45)
+    section.footer_distance = Inches(0.05)  # 页脚距底边，减小以压缩页脚区、缩短与正文的间距
 
     footer = section.footer
-    # 添加固定的页脚文本
     paragraph = footer.add_paragraph()
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER  # 居中对齐
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
     run = paragraph.add_run('第 1 页')
-    run.font.size = Pt(8)  # 设置字体大小
-
+    run.font.size = Pt(6)
 
 
     # 添加公司名和标题（居中）
@@ -147,11 +169,24 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
         paragraph_format.line_spacing = 1.0
         return paragraph
 
-    # 添加中文标题（大号宋体，加粗）
-    add_centered_text_with_simsun("江苏慧通管道设备股份有限公司", font_size=24, bold=True, style='Heading 1')
+    # 添加公司名（logo + 文字，同一行居中）
+    title_para = doc.add_paragraph(style='Heading 1')
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_para.paragraph_format.space_before = Pt(0)
+    title_para.paragraph_format.space_after = Pt(0)
+    title_para.paragraph_format.line_spacing = 1.0
+    _res_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'resources')
+    logo_path = os.path.join(_res_dir, 'logo.JPG') if os.path.exists(os.path.join(_res_dir, 'logo.JPG')) else os.path.join(_res_dir, 'logo.jpg')
+    if os.path.exists(logo_path):
+        run_logo = title_para.add_run()
+        run_logo.add_picture(logo_path, width=Inches(0.8))
+        title_para.add_run('  ')  # logo与文字间距
+    run_text = title_para.add_run("江苏慧通管道设备股份有限公司")
+    set_simsun_font(run_text, 24, bold=True)
+    run_text.font.color.rgb = RGBColor(0, 0, 0)
 
     # 添加英文公司名（正常宋体）
-    add_centered_text_with_simsun("JiangShu Huitong Pipeline Equipment Co.Ltd", font_size=14)
+    add_centered_text_with_simsun("Jiangsu Huitong PiPeline Equipment Co.Ltd.", font_size=14)
 
     # 添加主标题（大号宋体，加粗）
     add_centered_text_with_simsun("恒力吊架性能试验记录", font_size=20, bold=True, style='Heading 1')
@@ -162,7 +197,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 添加基本信息表格
     table1 = doc.add_table(rows=3, cols=6)
     table1.style = 'Table Grid'
-    col_widths = [Inches(1.05), Inches(0.8), Inches(1.85), Inches(1.1), Inches(1.4), Inches(1.1)]
+    col_widths = [Inches(1.05), Inches(0.87), Inches(1.85), Inches(1.1), Inches(1.4), Inches(1.1)]
     for i, width in enumerate(col_widths):
         for row in table1.rows:
             row.cells[i].width = width
@@ -209,7 +244,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     cell = table.cell(0, 0)
     # 在单元格内添加图片
     paragraph = cell.paragraphs[0]  # 获取单元格内的段落
-    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(6.6))
+    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(7))
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph_format = paragraph.paragraph_format
     paragraph_format.space_before = Pt(4)
@@ -230,6 +265,10 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 第一行单独为2x12表格，横向排列6个2x2小表格
     top_table = doc.add_table(rows=2, cols=12)
     top_table.style = 'Table Grid'
+    col_widths_top = [Inches(0.525), Inches(0.525), Inches(0.435), Inches(0.435), Inches(0.625), Inches(0.625),Inches(0.45), Inches(0.45), Inches(1.0), Inches(1.0), Inches(0.7), Inches(0.7)]
+    for i, width in enumerate(col_widths_top):
+        for row in top_table.rows:
+            row.cells[i].width = width
     # 操作员
     top_table.cell(0, 0).merge(top_table.cell(1, 1))
     top_table.cell(0, 0).text = "操作员\nOperator"
@@ -257,7 +296,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 其余内容为一个2x6表格
     main_table = doc.add_table(rows=2, cols=6)
     main_table.style = 'Table Grid'
-    main_col_widths = [Inches(1.05), Inches(0.8), Inches(1.35), Inches(0.9), Inches(2.0), Inches(1.4)]
+    main_col_widths = [Inches(1.05), Inches(0.87), Inches(1.35), Inches(0.9), Inches(2.0), Inches(1.4)]
     for i, width in enumerate(main_col_widths):
         for row in main_table.rows:
             row.cells[i].width = width
@@ -270,7 +309,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
 
     main_table.cell(1, 0).text = "超载实验值\nOverload\ntest data"
     main_table.cell(1, 1).text = safe_str(detail[15]) + "N" if detail else ""
-    main_table.cell(1, 2).text = "超载起始-终止时间\ntime of\nstarting-finishing"
+    main_table.cell(1, 2).text = "超载起始-终止时间\nTime of\nstarting-finishing"
     main_table.cell(1, 3).text = safe_str(detail[16]) if detail else ""
     main_table.cell(1, 4).text = "超载实验保持时间\nDuration within\noverload test"
     main_table.cell(1, 5).text = safe_str(detail[17]) if detail else ""
@@ -281,7 +320,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 最后一个1行的表格，4个内容（自动适应页面宽度与上方表格一致）
     bottom_table = doc.add_table(rows=1, cols=8)
     bottom_table.style = 'Table Grid'
-    bottom_col_widths = [Inches(1.1), Inches(0.725), Inches(1.5), Inches(0.425), Inches(1.1), Inches(0.625), Inches(1.5), Inches(0.325)]
+    bottom_col_widths = [Inches(1.1), Inches(0.795), Inches(1.5), Inches(0.425), Inches(1.1), Inches(0.625), Inches(1.5), Inches(0.325)]
     for i, width in enumerate(bottom_col_widths):
         bottom_table.cell(0, i).width = width
     bottom_table.cell(0, 0).text = "恒定度\nConstant rate"
@@ -296,13 +335,6 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     # 设置最后一个表格的下边和左右边加粗
     set_table_border(bottom_table, bottom=True, left=True, right=True)
 
-    # 保存 Word 文件（使用配置的根目录/年份/月份/）
-    save_dir = get_print_save_dir_for_today()
-    # 出厂编号+测试时间，避免同出厂编号多次测试时文件名冲突
-    test_time_safe = (str(detail[1]) if detail[1] else "").replace(":", "-").replace(" ", "_").replace("/", "-")
-    time_suffix = f"-{test_time_safe}" if test_time_safe else ""
-    filename = f"恒力吊架性能试验记录-{detail[4]}{time_suffix}.docx"
-    full_path = os.path.abspath(os.path.join(save_dir, filename))
     doc.save(full_path)
 
     # 将文件完整路径写入数据库

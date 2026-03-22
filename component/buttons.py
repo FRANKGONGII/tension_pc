@@ -8,10 +8,10 @@ class ChartButton1(QPushButton):
     def __init__(self, text="算法1"):
         super().__init__(text)
 
-# 图表显示button2
-class ChartButton2(QPushButton):
-    def __init__(self, text="算法2"):
-        super().__init__(text)
+# 图表显示button2（算法2已注释）
+# class ChartButton2(QPushButton):
+#     def __init__(self, text="算法2"):
+#         super().__init__(text)
 
 
 # 菜单button

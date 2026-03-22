@@ -3,7 +3,7 @@ from enum import auto
 from PyQt5.QtWidgets import QToolBar, QPushButton, QMenu, QAction, QButtonGroup, QWidget, QSizePolicy, QLabel
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from datetime import datetime
-from component.buttons import MenuButton,ChartButton1,ChartButton2
+from component.buttons import MenuButton, ChartButton1  # ChartButton2 算法2已注释
 
 
 class ToolBarWidget(QToolBar):
@@ -14,7 +14,7 @@ class ToolBarWidget(QToolBar):
         on_retest = auto()
 
     switch_chart_1 = pyqtSignal()  # 切换信号（供主界面使用）
-    switch_chart_2 = pyqtSignal()
+    # switch_chart_2 = pyqtSignal()  # 算法2已注释
     history_visible = pyqtSignal()
     clear_panel_clicked = pyqtSignal()
     edit_visible = pyqtSignal()
@@ -40,10 +40,11 @@ class ToolBarWidget(QToolBar):
         self.chart_btn1.clicked.connect(self.switch_chart_1.emit)
         self.addWidget(self.chart_btn1)
 
-        self.chart_btn2 = ChartButton2()
-        self.chart_btn2.setEnabled(False)  # 暂时禁用
-        self.chart_btn2.clicked.connect(self.switch_chart_2.emit)
-        self.addWidget(self.chart_btn2)
+        # 算法2已注释
+        # self.chart_btn2 = ChartButton2()
+        # self.chart_btn2.setEnabled(False)
+        # self.chart_btn2.clicked.connect(self.switch_chart_2.emit)
+        # self.addWidget(self.chart_btn2)
 
         self._add_separator()
 
@@ -97,10 +98,10 @@ class ToolBarWidget(QToolBar):
         self._time_timer.start(1000)  # 每秒更新
         self.addWidget(self.time_label)
 
-        # 互斥选中：仅算法1、算法2两个按钮，点击后高亮，点击另一按钮时原选中自动恢复原色
+        # 互斥选中：仅算法1按钮（算法2已注释）
         self._chart_button_group = QButtonGroup(self)
         self._chart_button_group.setExclusive(True)
-        for btn in (self.chart_btn1, self.chart_btn2):
+        for btn in (self.chart_btn1,):  # self.chart_btn2 已注释
             btn.setCheckable(True)
             self._chart_button_group.addButton(btn)
 

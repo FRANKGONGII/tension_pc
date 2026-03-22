@@ -9,7 +9,7 @@ from widgets.header import HeaderWidget
 from widgets.data_display import DataDisplayWidget
 from widgets.footer import FooterWidget
 from widgets.sub_widgets.test_widget_1 import TestViewWidget_1
-from widgets.sub_widgets.test_widget_2 import TestViewWidget_2
+# from widgets.sub_widgets.test_widget_2 import TestViewWidget_2  # 算法2已注释
 from widgets.sub_widgets.search_history_widget import SearchHistoryWidget
 from widgets.toolbar import ToolBarWidget
 from utils.data_manager import DataManager
@@ -17,7 +17,7 @@ from utils.system_logger import get_logger
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from utils.print_doc import print_doc
+from utils.print_doc import print_doc, PrintCancelled
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -51,9 +51,9 @@ class MainWindow(QMainWindow):
         # 中部页面2：图表计算1
         self.chart_widget1 = TestViewWidget_1()
         self.stack.addWidget(self.chart_widget1)
-        # 中部页面3：图表计算2
-        self.chart_widget2 = TestViewWidget_2()
-        self.stack.addWidget(self.chart_widget2)
+        # 中部页面3：图表计算2（已注释）
+        # self.chart_widget2 = TestViewWidget_2()
+        # self.stack.addWidget(self.chart_widget2)
         self.current_index = 0
 
         # 添加各个组件
@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         # self.footer = FooterWidget()
         self.toolbar = ToolBarWidget()
         self.toolbar.switch_chart_1.connect(self.switch_chart_1)
-        self.toolbar.switch_chart_2.connect(self.switch_chart_2)
+        # self.toolbar.switch_chart_2.connect(self.switch_chart_2)  # 算法2已注释
         self.toolbar.history_visible.connect(self.history_visible)
         self.toolbar.clear_panel_clicked.connect(self.on_clear_panel)
         self.toolbar.save_btn.clicked.connect(self.save_data)
@@ -99,10 +99,15 @@ class MainWindow(QMainWindow):
         self.dock.setMaximumWidth(dock_width)
         self.dock.setVisible(False)
 
+        # 默认展示算法1界面
+        self.stack.setCurrentIndex(1)
+        self.current_index = 1
+        self.toolbar.chart_btn1.setChecked(True)
+        self.chart_widget1.change_retest_visible()
+
         self.showMaximized()
 
     def handle_print_doc(self):
-        from utils.print_doc import print_doc
         # 1. 无效记录检查
         if self.now_handle_data_id <= 0:
             QMessageBox.warning(self, "提示", "无法打印：请先入库后再打印。")
@@ -116,6 +121,8 @@ class MainWindow(QMainWindow):
             print_doc(self.now_handle_data_id, self.chart_widget1._existing_file_path)
             # 3. 打印成功提示
             QMessageBox.information(self, "提示", "打印成功！")
+        except PrintCancelled:
+            pass  # 用户取消，不提示
         except Exception as e:
             QMessageBox.warning(self, "提示", f"打印失败：{e}")
 
@@ -141,9 +148,9 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(1)
         self.chart_widget1.change_retest_visible()
 
-    def switch_chart_2(self):
-        self.stack.setCurrentIndex(2)
-        
+    # def switch_chart_2(self):  # 算法2已注释
+    #     self.stack.setCurrentIndex(2)
+    #
     def history_visible(self):
         self.search_history_widget.handle_search()
         self.dock.setVisible(not self.dock.isVisible())
@@ -151,6 +158,7 @@ class MainWindow(QMainWindow):
     def on_clear_panel(self):
         """处理清空面板按钮点击"""
         chart_widget1 = self.chart_widget1
+        self.now_handle_data_id = -1
         # 清空原先数据
         chart_widget1._cnt_receive_dot = 0
         chart_widget1._record_dot_x = []
