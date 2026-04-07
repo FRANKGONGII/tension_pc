@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 
-from utils.config_manager import load_config, save_config
+from utils.config_manager import load_config, save_config, DEFAULT_TARGET_CONSTANCY_PERCENT
 
 
 class ScaleAdjustDialog(QDialog):
@@ -21,9 +21,19 @@ class ScaleAdjustDialog(QDialog):
         self.label_current_constancy = QLabel("恒定度：尚未加载")
         self.label_current_constancy.setAlignment(Qt.AlignCenter)
 
-        # 目标恒定度显示
-        self.label_target_constancy = QLabel("目标恒定度：尚未加载")
-        self.label_target_constancy.setAlignment(Qt.AlignCenter)
+        # 目标恒定度（与超载系数相同：可编辑 + 保存到配置）
+        self.target_constancy_spin = QDoubleSpinBox()
+        self.target_constancy_spin.setRange(1.0, 15.0)
+        self.target_constancy_spin.setSingleStep(0.1)
+        self.target_constancy_spin.setDecimals(1)
+        self.target_constancy_spin.setValue(DEFAULT_TARGET_CONSTANCY_PERCENT)
+        self.target_constancy_spin.setMinimumWidth(100)
+        save_target_btn = QPushButton("保存目标恒定度")
+        save_target_btn.clicked.connect(self._on_save_target_constancy)
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("目标恒定度(%)："))
+        target_layout.addWidget(self.target_constancy_spin)
+        target_layout.addWidget(save_target_btn)
 
         # 执行缩放区域按钮
         self.btn_scale = QPushButton("执行缩放")
@@ -51,11 +61,11 @@ class ScaleAdjustDialog(QDialog):
         overload_layout.addWidget(self.overload_spin)
         overload_layout.addWidget(save_overload_btn)
 
-        # 主布局：上方执行缩放区 + 横线 + 下方超载系数区
+        # 主布局
         layout = QVBoxLayout()
         layout.addWidget(self.label_current_range)
         layout.addWidget(self.label_current_constancy)
-        layout.addWidget(self.label_target_constancy)
+        layout.addLayout(target_layout)
         layout.addLayout(button_layout)
         layout.addWidget(line)
         layout.addLayout(overload_layout)
@@ -66,12 +76,24 @@ class ScaleAdjustDialog(QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_scale.clicked.connect(self.accept)
 
-        self._load_overload_config()
+        self._load_scale_dialog_config()
 
-    def _load_overload_config(self):
-        """从配置加载超载系数并填充输入框"""
+    def _load_scale_dialog_config(self):
         cfg = load_config()
         self.overload_spin.setValue(float(cfg.get("overload_factor", 2.5)))
+        self.target_constancy_spin.setValue(
+            float(cfg.get("target_constancy_percent", DEFAULT_TARGET_CONSTANCY_PERCENT))
+        )
+
+    def get_target_constancy_fraction(self):
+        """当前对话框中的目标恒定度，相对比值（如 5% -> 0.05）。"""
+        return self.target_constancy_spin.value() / 100.0
+
+    def _on_save_target_constancy(self):
+        from PyQt5.QtWidgets import QMessageBox
+        val = self.target_constancy_spin.value()
+        save_config(target_constancy_percent=val)
+        QMessageBox.information(self, "提示", "目标恒定度已保存。")
 
     def _on_save_overload(self):
         """保存超载试验系数"""
@@ -89,7 +111,4 @@ class ScaleAdjustDialog(QDialog):
             self.label_current_constancy.setText(f"恒定度：{constancy:.4f}")
         else:
             self.label_current_constancy.setText("恒定度：")
-        self.label_target_constancy.setText("目标恒定度：6%")
-
-
 

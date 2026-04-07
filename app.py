@@ -1,7 +1,17 @@
+import os
+import sys
+
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QStackedLayout, QLabel, QDockWidget, QTextEdit, \
     QApplication, QDialog, QMessageBox
 from PyQt5.QtCore import Qt, QTimer
 #from boto import connect_sns
+
+
+def _project_root():
+    """源码：项目根目录；PyInstaller：bundle 根目录（与 utils 上一级一致）。"""
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
 
 from widgets.dialog.ScaleAdjustDialog import ScaleAdjustDialog
 from widgets.dialog.ConfigDialog import ConfigDialog
@@ -18,6 +28,7 @@ from utils.system_logger import get_logger
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from utils.print_doc import print_doc, PrintCancelled
+from utils.calculate import calculate_constancy, robust_min_max_means, solve_constancy_pull_params
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -25,8 +36,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("恒力吊架性能测试系统")
         self.init_ui()
         self.load_styles()
-        # 预期恒定度
-        self.target_constancy_value = 5
         # 正在处理的表单数据id，默认-1，打印用
         self.now_handle_data_id = -1
 
@@ -129,7 +138,8 @@ class MainWindow(QMainWindow):
     def load_styles(self):
         """加载样式表"""
         try:
-            with open('resources/styles.qss', 'r', encoding='utf-8') as f:
+            qss_path = os.path.join(_project_root(), "resources", "styles.qss")
+            with open(qss_path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
             # print("未找到样式表文件")
@@ -192,6 +202,13 @@ class MainWindow(QMainWindow):
         chart_widget1.plot_widget.clear()
         chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=5, symbolBrush='b')
         chart_widget1.restart = False
+        chart_widget1.adjust_center = -1
+        chart_widget1.adjust_number = 0.0
+        chart_widget1.adjust_constancy_m_ref = None
+        chart_widget1.adjust_constancy_M_ref = None
+        chart_widget1.adjust_constancy_phi = 0.0
+        chart_widget1.adjust_constancy_gamma = 2.0
+        chart_widget1._scale_replay_x = []
 
         chart_widget1.time_input.setText("")
         chart_widget1.input_manager.set_value("试验时间", "")
@@ -236,35 +253,48 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "提示", "入库成功！")
 
     def edit_data(self):
-        x = self.chart_widget1._record_dot_x or []
-        self.on_adjust_scale_clicked(points=x)
+        w = self.chart_widget1
+        x = w._record_dot_x or []
+        y = w._record_dot_y or []
+        ys = y if len(y) == len(x) else None
+        self.on_adjust_scale_clicked(points=x, ys=ys)
 
-    def on_adjust_scale_clicked(self, points: []):
+    def on_adjust_scale_clicked(self, points, ys=None):
         if points:
-            min_val = min(points)
-            max_val = max(points)
-            constancy = self.calculate_constancy(points)
+            m, M = robust_min_max_means(points)
+            min_val, max_val = m, M
+            constancy = calculate_constancy(points)
         else:
             min_val = max_val = constancy = None
         dialog = ScaleAdjustDialog(self)
         dialog.set_data_stats(min_val, max_val, constancy)
 
-        if dialog.exec_() == QDialog.Accepted and points and constancy is not None:
-            new_x = self.try_scaling(points, constancy)
+        if dialog.exec_() == QDialog.Accepted and points:
+            self.try_scaling(points, ys, dialog.get_target_constancy_fraction())
 
-    # TODO: 想一个好一点的方法处理
-    def try_scaling(self, points, constancy):
-        maxP = max(points)
-        minP = min(points)
-        mid = (maxP + minP) / 2
-
-        if constancy < self.target_constancy_value:
+    def try_scaling(self, points, ys, target_fraction):
+        m, M = robust_min_max_means(points)
+        if m is None or M is None or M + m <= 0:
+            QMessageBox.warning(self, "提示", "无法计算缩放：力值数据无效。")
             return
-        self.chart_widget1.adjust_center = mid
-        self.chart_widget1.adjust_number = (constancy - self.target_constancy_value) / 100
-
-
-    def calculate_constancy(self, points):
-        maxP = max(points)
-        minP = min(points)
-        return (maxP - minP) * 100 / (maxP + minP)
+        target_percent = float(target_fraction) * 100.0
+        params = solve_constancy_pull_params(points, ys, target_percent, window_n=5)
+        if params is None:
+            QMessageBox.warning(self, "提示", "无法计算缩放：力值数据无效。")
+            return
+        try:
+            wg_raw = self.chart_widget1.input_manager.get_value("工作载荷")
+            Wg = float(wg_raw) / 1000.0
+        except (TypeError, ValueError):
+            QMessageBox.warning(self, "提示", "请先填写有效的工作载荷。")
+            return
+        if Wg <= 0:
+            QMessageBox.warning(self, "提示", "工作载荷须为大于 0 的数值。")
+            return
+        cw = self.chart_widget1
+        cw.adjust_constancy_m_ref = params["m_ref"]
+        cw.adjust_constancy_M_ref = params["M_ref"]
+        cw.adjust_constancy_phi = params["phi"]
+        cw.adjust_constancy_gamma = params["gamma"]
+        cw.adjust_number = params["phi"]
+        cw.adjust_center = Wg

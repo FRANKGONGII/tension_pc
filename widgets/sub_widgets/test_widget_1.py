@@ -14,7 +14,9 @@ import pyqtgraph as pg
 from pyqtgraph import TextItem
 
 from utils.serial_reader import SerialReader
-from utils.config_manager import get_serial_port, get_overload_factor, get_combobox_history, save_combobox_item
+from utils.config_manager import (
+    get_serial_port, get_overload_factor, get_combobox_history, save_combobox_item,
+)
 from utils.data_manager import DataManager
 from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
@@ -51,10 +53,13 @@ class TestViewWidget_1(QWidget):
     input_manager = inputManager()
     # 数据库
     DataManager = DataManager()
-    # 调整系数
-    adjust_number = 1
-    # 调整中心值
+    # adjust_center != -1 表示已启用恒定度校准；点击缩放时写入 m_ref/M_ref/φ/γ，对称向中心压缩 + 按 y 峰分段滤波
+    adjust_number = 0.0
     adjust_center = -1
+    adjust_constancy_m_ref = None
+    adjust_constancy_M_ref = None
+    adjust_constancy_phi = 0.0
+    adjust_constancy_gamma = 2.0
     # y轴起始点，用于去0逻辑
     _y_start = None
     # 标记是否已经记录了起始点
@@ -86,6 +91,8 @@ class TestViewWidget_1(QWidget):
     _if_accpet_node = True
     _filter_x_window = []
     _FILTER_WINDOW_N = 5
+    # 恒定度缩放：记录「去0后、固定 φ 变换前」的力值
+    _scale_replay_x = []
 
     def __init__(self):
         super().__init__()
@@ -333,6 +340,7 @@ class TestViewWidget_1(QWidget):
             self._has_saved = False  # 新测试开始，重置入库标记
             self._scale_switched = False
             self._filter_x_window = []
+            self._scale_replay_x = []
             # 重置去0逻辑相关变量
             self._y_start = None
             self._has_recorded_start = False
@@ -454,7 +462,12 @@ class TestViewWidget_1(QWidget):
             # self.serial_reader.stop_test_thread()
             # self.serial_reader.end()
 
+    def _calibrate_constancy_on_recorded_series_if_needed(self):
+        """固定参数已在点击缩放时确定，测试中已实时变换；结束无需再改力值。"""
+        return
+
     def reanalyze_and_rearrange_labels(self):
+        self._calibrate_constancy_on_recorded_series_if_needed()
 
         # 计算超载试验值（工作载荷 × 配置系数 + 0.001-0.002倍扰动）
         try:
@@ -575,27 +588,33 @@ class TestViewWidget_1(QWidget):
         label.setPos(label_x, label_y)
         self.plot_widget.addItem(label)
 
-    def rewrite_chart(self, x: list, y: list, highlight: list, side_right: list):
+    def _rebuild_pyqt_chart_with_highlights(self):
+        """按当前 _record_dot_x/y 重画主曲线、公差线及高亮散点与标签（x 被事后校准改写后须调用）。"""
         self.plot_widget.clear()
         self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
-        self._record_dot_y = y
-        self._record_dot_x = x
-        self._cnt_receive_dot = 0
-
         self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
         self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
-
-        # 插入边界线
-        base = float(self.input_manager.get_value("工作载荷"))/1000
-        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
-        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
-        self.plot_widget.addItem(line1)
-        self.plot_widget.addItem(line2)
-
+        try:
+            base = float(self.input_manager.get_value("工作载荷")) / 1000
+            self.plot_widget.addItem(InfiniteLine(pos=base * 1.06, angle=90, pen='r'))
+            self.plot_widget.addItem(InfiniteLine(pos=base * 0.94, angle=90, pen='g'))
+        except (ValueError, TypeError):
+            pass
         self.update_chart(self._record_dot_x, self._record_dot_y)
-        for i in range(0, len(highlight)):
-            if highlight[i]:
-                self.highlight_plot(x[i], y[i], side_right[i])
+        hl, sd = self._record_dot_highlight, self._record_dot_side
+        nx = len(self._record_dot_x)
+        for i in range(min(len(hl), nx)):
+            if hl[i]:
+                side = sd[i] if i < len(sd) else True
+                self.highlight_plot(self._record_dot_x[i], self._record_dot_y[i], side)
+
+    def rewrite_chart(self, x: list, y: list, highlight: list, side_right: list):
+        self._record_dot_x = x
+        self._record_dot_y = y
+        self._record_dot_highlight = list(highlight)
+        self._record_dot_side = list(side_right)
+        self._cnt_receive_dot = 0
+        self._rebuild_pyqt_chart_with_highlights()
         # 使用matplotlib保存高质量图片
         # self.save_high_res_chart()
 
@@ -712,13 +731,6 @@ class TestViewWidget_1(QWidget):
             self.set_y_range(scale[2], scale[3])
             self._scale_switched = True
 
-        if self.adjust_center != -1:
-            # print("will adjust number")
-            if x < self.adjust_center:
-                x = x * (1 + self.adjust_number)
-            else:
-                x = x * (1 - self.adjust_number)
-        
         # 实现x轴去0逻辑：如果已经记录了初始值，则减去该值
         # print("init", self._latest_x_value)
         if self._x_initial is not None:
@@ -732,29 +744,64 @@ class TestViewWidget_1(QWidget):
             if y < 0:
                 y = 0
 
-        # 滑动窗口滤波（仅对力值 x，抑制极端值）
-        if len(self._filter_x_window) == 0:
-            self._filter_x_window = [x] * self._FILTER_WINDOW_N
-            x_filtered = x
-        else:
-            self._filter_x_window.append(x)
-            if len(self._filter_x_window) > self._FILTER_WINDOW_N:
-                self._filter_x_window.pop(0)
-            x_filtered = statistics.median(self._filter_x_window)
-        x = x_filtered
+        x_prescale = float(x)
+        cal_series = None
 
-        # 发射处理后的数据到data_display
-        if self._record_dot_y is not None and len(self._record_dot_y) > 0:
-            self.received_data_changed.emit([x, y - self._record_dot_y[0], y])
-        else:
-            self.received_data_changed.emit([x, 0, 0])
-        
+        def _emit_display(xv):
+            if self._record_dot_y is not None and len(self._record_dot_y) > 0:
+                self.received_data_changed.emit([xv, y - self._record_dot_y[0], y])
+            else:
+                self.received_data_changed.emit([xv, 0, 0])
+
         if not self.serial_reader._sending_data:
+            if len(self._filter_x_window) == 0:
+                xv = x_prescale
+            else:
+                self._filter_x_window.append(x_prescale)
+                if len(self._filter_x_window) > self._FILTER_WINDOW_N:
+                    self._filter_x_window.pop(0)
+                xv = statistics.median(self._filter_x_window)
+            _emit_display(xv)
             return
-        if self._if_accpet_node: 
+
+        skip_first_node = self._if_accpet_node
+        if skip_first_node:
             self._if_accpet_node = False
+
+        # 启用校准且进入正式打点：用点击缩放时固定的 m_ref/M_ref/φ 对前缀做拉拢+中值滤波（不再随当前曲线重算 φ）
+        if (
+            (not skip_first_node)
+            and self.adjust_center != -1
+            and self.adjust_constancy_m_ref is not None
+        ):
+            self._scale_replay_x.append(x_prescale)
+            y_prefix = self._record_dot_y + [y]
+            pulled = apply_symmetric_extreme_pull(
+                self._scale_replay_x,
+                self.adjust_constancy_phi,
+                self.adjust_constancy_m_ref,
+                self.adjust_constancy_M_ref,
+                self.adjust_constancy_gamma,
+            )
+            cal_series = median_filter_hysteresis_by_y_peak(
+                y_prefix, pulled, self._FILTER_WINDOW_N
+            )
+            x = cal_series[-1]
+        else:
+            if len(self._filter_x_window) == 0:
+                self._filter_x_window = [x_prescale] * self._FILTER_WINDOW_N
+                x = x_prescale
+            else:
+                self._filter_x_window.append(x_prescale)
+                if len(self._filter_x_window) > self._FILTER_WINDOW_N:
+                    self._filter_x_window.pop(0)
+                x = statistics.median(self._filter_x_window)
+
+        _emit_display(x)
+
+        if skip_first_node:
             return
-        
+
         min_value = float(self.input_manager.get_value("工作载荷"))/1000 * 0.94
         max_value = float(self.input_manager.get_value("工作载荷"))/1000 * 1.06
         if (x < min_value or x > max_value) and self._y_start_value is not None:
@@ -806,15 +853,20 @@ class TestViewWidget_1(QWidget):
             if should_highlight:
                 if target_displacement is not None and highlight_side_right:
                     self.stack_cnt.append(target_displacement)
-                self.highlight_plot(x, y, highlight_side_right)
+                if self.adjust_center == -1:
+                    self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
                 # self.save_high_res_chart()
-        
-        # 更新图表
-        self.update_chart(self._record_dot_x, self._record_dot_y)
-        
-        # 添加到记录列表
-        self._record_dot_x.append(x)
+
         self._record_dot_y.append(y)
+        if self.adjust_center != -1:
+            self._record_dot_x = cal_series
+        else:
+            self._record_dot_x.append(x)
         self._record_dot_highlight.append(should_highlight)
         self._record_dot_side.append(highlight_side_right)
+
+        if self.adjust_center != -1:
+            self._rebuild_pyqt_chart_with_highlights()
+        else:
+            self.update_chart(self._record_dot_x, self._record_dot_y)

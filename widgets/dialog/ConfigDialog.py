@@ -4,7 +4,7 @@ import sys
 from PyQt5.QtWidgets import (
     QDialog, QLabel, QLineEdit, QPushButton, QFileDialog,
     QVBoxLayout, QHBoxLayout, QFormLayout, QDialogButtonBox,
-    QComboBox
+    QComboBox, QDoubleSpinBox,
 )
 from PyQt5.QtCore import Qt
 
@@ -83,6 +83,16 @@ class ConfigDialog(QDialog):
         port_layout.addWidget(port_refresh_btn)
         form.addRow("数据读取端口：", port_layout)
 
+        self.scale_hysteresis_spin = QDoubleSpinBox()
+        self.scale_hysteresis_spin.setRange(0.0, 50.0)
+        self.scale_hysteresis_spin.setSingleStep(0.5)
+        self.scale_hysteresis_spin.setDecimals(1)
+        self.scale_hysteresis_spin.setSpecialValueText("自动")
+        self.scale_hysteresis_spin.setToolTip(
+            "恒定度缩放位移滞回 δ（mm）。0 表示按工作位移自动：max(1, 0.5%×工作位移)。"
+        )
+        form.addRow("缩放位移滞回 δ(mm)：", self.scale_hysteresis_spin)
+
         layout.addLayout(form)
 
         tip = QLabel("提示：串口配置在下次开始测试时生效。")
@@ -142,6 +152,8 @@ class ConfigDialog(QDialog):
             self.port_edit.setCurrentIndex(idx)
         else:
             self.port_edit.setCurrentText(saved_port)
+        shm = float(cfg.get("scale_hysteresis_mm", 0.0) or 0.0)
+        self.scale_hysteresis_spin.setValue(shm if shm > 0 else 0.0)
 
     def _browse_save_path(self):
         path = QFileDialog.getExistingDirectory(self, "选择保存目录", self.save_path_edit.text())
@@ -156,5 +168,10 @@ class ConfigDialog(QDialog):
             from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "提示", "请输入打印机名称。")
             return
-        save_config(printer_name=printer, print_save_path=save_path or None, serial_port=port or None)
+        save_config(
+            printer_name=printer,
+            print_save_path=save_path or None,
+            serial_port=port or None,
+            scale_hysteresis_mm=float(self.scale_hysteresis_spin.value()),
+        )
         self.accept()

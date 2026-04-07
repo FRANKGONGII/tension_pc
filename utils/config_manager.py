@@ -8,6 +8,10 @@ DEFAULT_PRINTER = "Canon iP1188 series"
 DEFAULT_SAVE_PATH = ""
 DEFAULT_SERIAL_PORT = "COM7"
 DEFAULT_OVERLOAD_FACTOR = 2.5
+# 执行缩放校准用的目标恒定度（百分数，如 5.0 表示 5%）
+DEFAULT_TARGET_CONSTANCY_PERCENT = 5.0
+# 位移滞回 δ（mm）：0 或未设置表示自动 max(1.0, 0.5% * 工作位移)
+DEFAULT_SCALE_HYSTERESIS_MM = 0.0
 
 
 def _config_path():
@@ -25,6 +29,8 @@ def load_config():
             "print_save_path": DEFAULT_SAVE_PATH or os.getcwd(),
             "serial_port": DEFAULT_SERIAL_PORT,
             "overload_factor": DEFAULT_OVERLOAD_FACTOR,
+            "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
+            "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
         }
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -36,11 +42,23 @@ def load_config():
             of = (float(cfg["overload_factor_min"]) + float(cfg["overload_factor_max"])) / 2
         else:
             of = DEFAULT_OVERLOAD_FACTOR
+        tcp = cfg.get("target_constancy_percent", DEFAULT_TARGET_CONSTANCY_PERCENT)
+        try:
+            tcp = float(tcp)
+        except (TypeError, ValueError):
+            tcp = DEFAULT_TARGET_CONSTANCY_PERCENT
+        shm = cfg.get("scale_hysteresis_mm", DEFAULT_SCALE_HYSTERESIS_MM)
+        try:
+            shm = float(shm)
+        except (TypeError, ValueError):
+            shm = DEFAULT_SCALE_HYSTERESIS_MM
         return {
             "printer_name": cfg.get("printer_name", DEFAULT_PRINTER),
             "print_save_path": cfg.get("print_save_path") or os.getcwd(),
             "serial_port": cfg.get("serial_port", DEFAULT_SERIAL_PORT),
             "overload_factor": of,
+            "target_constancy_percent": tcp,
+            "scale_hysteresis_mm": shm,
         }
     except Exception:
         return {
@@ -48,11 +66,14 @@ def load_config():
             "print_save_path": os.getcwd(),
             "serial_port": DEFAULT_SERIAL_PORT,
             "overload_factor": DEFAULT_OVERLOAD_FACTOR,
+            "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
+            "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
         }
 
 
 def save_config(printer_name=None, print_save_path=None, serial_port=None,
-                overload_factor=None):
+                overload_factor=None, target_constancy_percent=None,
+                scale_hysteresis_mm=None):
     """保存配置（仅更新传入的字段）"""
     path = _config_path()
     cfg = load_config()
@@ -64,6 +85,10 @@ def save_config(printer_name=None, print_save_path=None, serial_port=None,
         cfg["serial_port"] = str(serial_port).strip() or DEFAULT_SERIAL_PORT
     if overload_factor is not None:
         cfg["overload_factor"] = float(overload_factor)
+    if target_constancy_percent is not None:
+        cfg["target_constancy_percent"] = float(target_constancy_percent)
+    if scale_hysteresis_mm is not None:
+        cfg["scale_hysteresis_mm"] = float(scale_hysteresis_mm)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
@@ -94,6 +119,34 @@ def get_serial_port():
 
 def get_overload_factor():
     return load_config()["overload_factor"]
+
+
+def get_target_constancy_percent():
+    """目标恒定度（百分数，如 5.0 表示 5%）"""
+    return float(load_config()["target_constancy_percent"])
+
+
+def get_scale_hysteresis_delta_mm(working_displacement_mm=None):
+    """
+    恒定度缩放位移滞回 δ（mm）。
+    若配置 scale_hysteresis_mm > 0 则使用该值；否则 max(1.0, 0.5% * 工作位移)，无工作位移时用 1.0。
+    """
+    cfg = load_config()
+    v = cfg.get("scale_hysteresis_mm", DEFAULT_SCALE_HYSTERESIS_MM)
+    try:
+        fv = float(v)
+    except (TypeError, ValueError):
+        fv = DEFAULT_SCALE_HYSTERESIS_MM
+    if fv > 0:
+        return fv
+    if working_displacement_mm is not None:
+        try:
+            wd = float(working_displacement_mm)
+        except (TypeError, ValueError):
+            wd = 0.0
+        if wd > 0:
+            return max(1.0, 0.005 * wd)
+    return 1.0
 
 
 def get_combobox_history(key):
