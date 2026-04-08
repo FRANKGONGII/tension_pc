@@ -695,7 +695,8 @@ class TestViewWidget_1(QWidget):
         plt.tight_layout()
         
         # 保存为PNG文件
-        plt.savefig("./resources/png.png", dpi=300, bbox_inches='tight')
+        from utils.paths import data_path
+        plt.savefig(data_path("png.png"), dpi=300, bbox_inches='tight')
         plt.close(fig)  # 关闭图表以释放内存
         
     def set_x_range(self, x_min, x_max):

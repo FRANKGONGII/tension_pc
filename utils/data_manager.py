@@ -2,12 +2,17 @@ import json
 import sqlite3
 from PO.input_data import inputManager
 from utils.system_logger import get_logger
+from utils.paths import data_path
 
 class DataManager:
     @staticmethod
+    def _db_path():
+        return data_path("form_data.db")
+
+    @staticmethod
     def queryTestDataByFormId(form_id):
         """查询指定 form_id 的测试数据，返回 (x_list, y_list, highlight, highlight_side_right)"""
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         sql = '''SELECT displacement, force, highlight, highlight_side_right FROM test_data WHERE form_id = ?'''
         cursor.execute(sql, (form_id,))
@@ -34,7 +39,7 @@ class DataManager:
 
 
     def init_db(self):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS test_detail (
@@ -82,7 +87,7 @@ class DataManager:
 
     @staticmethod
     def queryById(data_id):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         sql = '''SELECT * FROM test_detail WHERE id = ?'''
         cursor.execute(sql, (data_id,))
@@ -92,7 +97,7 @@ class DataManager:
     
     @staticmethod
     def save_detail(data: inputManager):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         # print("first get and save", data)
 
@@ -135,7 +140,7 @@ class DataManager:
     @staticmethod
     def update_file_path(form_id: int, file_path: str):
         """更新记录的打印文件完整路径"""
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         cursor.execute("UPDATE test_detail SET file_path = ? WHERE id = ?", (file_path, form_id))
         conn.commit()
@@ -147,7 +152,7 @@ class DataManager:
         if len(x_list) != len(y_list):
             raise ValueError("x_list 和 y_list 长度不一致")
 
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         cursor.execute(
             '''
@@ -161,7 +166,7 @@ class DataManager:
 
     @staticmethod
     def queryByYear(year):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         # 构建SQL(通过年份查找)
         sql = f'''
@@ -177,7 +182,7 @@ class DataManager:
 
     @staticmethod
     def queryByYearAndUser(year, user):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         cursor = conn.cursor()
         # 构建SQL(通过年份查找)
         sql = f'''
@@ -194,7 +199,7 @@ class DataManager:
 
     @staticmethod
     def queryByYearAndFactoryNum(year, number):
-        conn = sqlite3.connect("form_data.db")
+        conn = sqlite3.connect(DataManager._db_path())
         # print(number == None)
         cursor = conn.cursor()
         # 构建SQL(通过年份查找)

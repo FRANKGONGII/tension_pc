@@ -7,11 +7,7 @@ from PyQt5.QtCore import Qt, QTimer
 #from boto import connect_sns
 
 
-def _project_root():
-    """源码：项目根目录；PyInstaller：bundle 根目录（与 utils 上一级一致）。"""
-    if getattr(sys, "frozen", False):
-        return sys._MEIPASS
-    return os.path.dirname(os.path.abspath(__file__))
+from utils.paths import resource_path
 
 from widgets.dialog.ScaleAdjustDialog import ScaleAdjustDialog
 from widgets.dialog.ConfigDialog import ConfigDialog
@@ -139,7 +135,7 @@ class MainWindow(QMainWindow):
     def load_styles(self):
         """加载样式表"""
         try:
-            qss_path = os.path.join(_project_root(), "resources", "styles.qss")
+            qss_path = resource_path(os.path.join("resources", "styles.qss"))
             with open(qss_path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:

@@ -6,6 +6,7 @@ import serial
 import serial.tools.list_ports
 import threading
 from utils.system_logger import get_logger
+from utils.paths import data_path
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QPushButton
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -122,7 +123,7 @@ class SerialReader(QObject):
                                         }
                                         # print(parsed)
                                         data = f"({force * 9.8 / 1000}, {distance}, {status})"
-                                        with open("data.txt", "a") as f:
+                                        with open(data_path("data.txt"), "a", encoding="utf-8") as f:
                                             f.write(data + "\n")
                                             
                                         # 无条件发送数据，确保data_display能接收到

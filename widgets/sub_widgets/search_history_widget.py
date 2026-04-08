@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from utils import data_manager
 from utils.data_manager import DataManager
+from utils.config_manager import get_query_year_start
 
 
 class SearchHistoryWidget(QWidget):
@@ -23,14 +24,22 @@ class SearchHistoryWidget(QWidget):
         row1.addWidget(self.query_mode)
         layout.addLayout(row1)
 
-        # 查询年份（默认当前年份）
+        # 查询年份：起始于 app_config.json 的 query_year_start（默认 2025），止于当前年 +1
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("查询年份："))
         self.year_box = QComboBox()
         current_year = datetime.now().year
-        years = [str(y) for y in range(current_year - 2, current_year + 6)]
+        end_year = current_year + 1
+        start_year = get_query_year_start()
+        if start_year > end_year:
+            years = [str(end_year)]
+        else:
+            years = [str(y) for y in range(start_year, end_year + 1)]
         self.year_box.addItems(years)
-        idx = years.index(str(current_year))
+        if str(current_year) in years:
+            idx = years.index(str(current_year))
+        else:
+            idx = len(years) - 1
         self.year_box.setCurrentIndex(idx)
         row2.addWidget(self.year_box)
         layout.addLayout(row2)

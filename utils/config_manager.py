@@ -3,6 +3,7 @@ import os
 import json
 import copy
 from datetime import datetime
+from utils.paths import data_path
 
 CONFIG_FILENAME = "app_config.json"
 DEFAULT_PRINTER = "Canon iP1188 series"
@@ -13,6 +14,8 @@ DEFAULT_OVERLOAD_FACTOR = 2.5
 DEFAULT_TARGET_CONSTANCY_PERCENT = 5.0
 # 位移滞回 δ（mm）：0 或未设置表示自动 max(1.0, 0.5% * 工作位移)
 DEFAULT_SCALE_HYSTERESIS_MM = 0.0
+# 历史查询对话框「查询年份」下拉框的起始年份（结束年为运行时年 +1，见 search_history_widget）
+DEFAULT_QUERY_YEAR_START = 2025
 
 # 与 test_widget_1 中带 save_history 的 combobox 键一致；仅启动时作缺省合并，不主动写盘
 DEFAULT_COMBOBOX_HISTORY = {
@@ -22,9 +25,8 @@ DEFAULT_COMBOBOX_HISTORY = {
 
 
 def _config_path():
-    """配置文件路径（与主程序同目录）"""
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, CONFIG_FILENAME)
+    """配置文件路径（可写数据目录）"""
+    return data_path(CONFIG_FILENAME)
 
 
 def _default_combobox_history():
@@ -71,6 +73,7 @@ def load_config():
         "overload_factor": DEFAULT_OVERLOAD_FACTOR,
         "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
         "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
+        "query_year_start": DEFAULT_QUERY_YEAR_START,
         "combobox_history": _default_combobox_history(),
     }
 
@@ -102,6 +105,12 @@ def load_config():
         )
     except (TypeError, ValueError):
         out["scale_hysteresis_mm"] = DEFAULT_SCALE_HYSTERESIS_MM
+    try:
+        out["query_year_start"] = int(
+            out.get("query_year_start", DEFAULT_QUERY_YEAR_START)
+        )
+    except (TypeError, ValueError):
+        out["query_year_start"] = DEFAULT_QUERY_YEAR_START
 
     if disk.get("printer_name") is not None:
         out["printer_name"] = str(disk["printer_name"])
@@ -118,7 +127,7 @@ def load_config():
 
 def save_config(printer_name=None, print_save_path=None, serial_port=None,
                 overload_factor=None, target_constancy_percent=None,
-                scale_hysteresis_mm=None):
+                scale_hysteresis_mm=None, query_year_start=None):
     """
     保存配置：在磁盘当前内容基础上只改传入字段，保留 combobox_history 及未知扩展键。
     """
@@ -136,6 +145,8 @@ def save_config(printer_name=None, print_save_path=None, serial_port=None,
         cfg["target_constancy_percent"] = float(target_constancy_percent)
     if scale_hysteresis_mm is not None:
         cfg["scale_hysteresis_mm"] = float(scale_hysteresis_mm)
+    if query_year_start is not None:
+        cfg["query_year_start"] = int(query_year_start)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
@@ -162,6 +173,11 @@ def get_print_save_dir_for_today():
 
 def get_serial_port():
     return load_config()["serial_port"]
+
+
+def get_query_year_start():
+    """历史查询「查询年份」下拉框起始年（配置 query_year_start，缺省 DEFAULT_QUERY_YEAR_START）"""
+    return int(load_config()["query_year_start"])
 
 
 def get_overload_factor():

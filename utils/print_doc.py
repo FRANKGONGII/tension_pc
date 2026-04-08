@@ -5,6 +5,7 @@ import sys
 from PyQt5.QtWidgets import QApplication, QFileDialog
 
 from utils.config_manager import get_printer_name, get_print_save_dir_for_today
+from utils.paths import data_path, resource_path
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
@@ -175,8 +176,9 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     title_para.paragraph_format.space_before = Pt(0)
     title_para.paragraph_format.space_after = Pt(0)
     title_para.paragraph_format.line_spacing = 1.0
-    _res_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'resources')
-    logo_path = os.path.join(_res_dir, 'logo.JPG') if os.path.exists(os.path.join(_res_dir, 'logo.JPG')) else os.path.join(_res_dir, 'logo.jpg')
+    logo_jpg_upper = resource_path(os.path.join("resources", "logo.JPG"))
+    logo_jpg_lower = resource_path(os.path.join("resources", "logo.jpg"))
+    logo_path = logo_jpg_upper if os.path.exists(logo_jpg_upper) else logo_jpg_lower
     if os.path.exists(logo_path):
         run_logo = title_para.add_run()
         run_logo.add_picture(logo_path, width=Inches(0.8))
@@ -244,7 +246,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
     cell = table.cell(0, 0)
     # 在单元格内添加图片
     paragraph = cell.paragraphs[0]  # 获取单元格内的段落
-    picture = paragraph.add_run().add_picture('./resources/png.png', width=Inches(7))
+    picture = paragraph.add_run().add_picture(data_path("png.png"), width=Inches(7))
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph_format = paragraph.paragraph_format
     paragraph_format.space_before = Pt(4)
