@@ -252,8 +252,12 @@ class SearchHistoryWidget(QWidget):
                     self.main_window.now_handle_data_id = int(data_id)
                     # 导入的是已有数据，禁用测试入库按钮并标记为已入库
                     test_widget.mark_as_saved()
-                    # 导入后禁用开始按钮，需点击清空面板后再启用
+                    # 导入后禁用测试流程按钮，需点击清空面板后再测
+                    test_widget.btn_zero.setEnabled(False)
                     test_widget.btn1.setEnabled(False)
+                    test_widget.btn2.setEnabled(False)
+                    if self.main_window and hasattr(self.main_window, "toolbar"):
+                        self.main_window.toolbar.save_btn.setEnabled(False)
 
             except Exception as e:
                 # print(f"导入数据时出错: {e}")

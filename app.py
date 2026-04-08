@@ -88,7 +88,8 @@ class MainWindow(QMainWindow):
         self.toolbar.menu_btn.print_doc_signal.connect(lambda _: self.handle_print_doc())  # 菜单打印与工具栏打印同功能
         self.toolbar.menu_btn.config_clicked.connect(self.show_config_dialog)
 
-        # 开始/结束控制测试入库按钮：点击开始禁用，点击结束启用
+        # 测试入库：启动时禁用；仅结束流程全部成功后启用；入库成功后再次禁用
+        self.toolbar.save_btn.setEnabled(False)
         self.chart_widget1.test_started.connect(lambda: self.toolbar.save_btn.setEnabled(False))
         self.chart_widget1.test_ended.connect(lambda: self.toolbar.save_btn.setEnabled(True))
 
@@ -215,8 +216,9 @@ class MainWindow(QMainWindow):
         for key in ["工作位移", "出厂编号", "工作载荷", "恒定度", "总位移", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
             chart_widget1.inputs[key].setText("")
             chart_widget1.input_manager.set_value(key, "")
-        # 清空面板后重新启用开始按钮
-        chart_widget1.btn1.setEnabled(True)
+        # 清空面板后恢复为「仅可记录初始值」
+        chart_widget1._set_test_buttons_pre_record()
+        self.toolbar.save_btn.setEnabled(False)
 
     def show_config_dialog(self):
         dialog = ConfigDialog(self)
@@ -248,6 +250,7 @@ class MainWindow(QMainWindow):
         self.now_handle_data_id = last_id
         DataManager.save_test_data(last_id, x_list, y_list, highlight, side_right)
         self.chart_widget1.mark_as_saved()
+        self.toolbar.save_btn.setEnabled(False)
 
         # 3. 入库成功提示
         QMessageBox.information(self, "提示", "入库成功！")

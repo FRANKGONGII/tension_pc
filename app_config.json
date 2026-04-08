@@ -1,11 +1,12 @@
 {
   "printer_name": "Microsoft Print to PDF",
   "print_save_path": "D:/lcynju/Documents/Projects/2025huitong",
-  "serial_port": "COM7",
+  "serial_port": "COM3",
   "overload_factor": 2.5,
+  "target_constancy_percent": 5.6999999999999975,
+  "scale_hysteresis_mm": 0.0,
   "combobox_history": {
-    "吊点代号": [
-      "111"
-    ]
+    "用户": [],
+    "吊点代号": []
   }
 }

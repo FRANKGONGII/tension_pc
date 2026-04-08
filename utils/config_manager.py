@@ -1,6 +1,7 @@
-"""配置管理：打印机名称、打印文件保存地址、串口端口"""
+"""配置管理：打印机名称、打印文件保存地址、串口端口、combobox 历史等"""
 import os
 import json
+import copy
 from datetime import datetime
 
 CONFIG_FILENAME = "app_config.json"
@@ -13,6 +14,12 @@ DEFAULT_TARGET_CONSTANCY_PERCENT = 5.0
 # 位移滞回 δ（mm）：0 或未设置表示自动 max(1.0, 0.5% * 工作位移)
 DEFAULT_SCALE_HYSTERESIS_MM = 0.0
 
+# 与 test_widget_1 中带 save_history 的 combobox 键一致；仅启动时作缺省合并，不主动写盘
+DEFAULT_COMBOBOX_HISTORY = {
+    "用户": [],
+    "吊点代号": [],
+}
+
 
 def _config_path():
     """配置文件路径（与主程序同目录）"""
@@ -20,61 +27,101 @@ def _config_path():
     return os.path.join(base, CONFIG_FILENAME)
 
 
-def load_config():
-    """加载配置，返回 dict"""
+def _default_combobox_history():
+    return {k: list(v) for k, v in DEFAULT_COMBOBOX_HISTORY.items()}
+
+
+def _read_raw_config():
+    """读取磁盘上的完整 JSON；无文件或损坏时返回空 dict。启动过程不修改文件。"""
     path = _config_path()
     if not os.path.exists(path):
-        return {
-            "printer_name": DEFAULT_PRINTER,
-            "print_save_path": DEFAULT_SAVE_PATH or os.getcwd(),
-            "serial_port": DEFAULT_SERIAL_PORT,
-            "overload_factor": DEFAULT_OVERLOAD_FACTOR,
-            "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
-            "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
-        }
+        return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        # 兼容旧配置：若只有 overload_factor_min/max，取其平均值
-        if "overload_factor" in cfg:
-            of = float(cfg["overload_factor"])
-        elif "overload_factor_min" in cfg and "overload_factor_max" in cfg:
-            of = (float(cfg["overload_factor_min"]) + float(cfg["overload_factor_max"])) / 2
-        else:
-            of = DEFAULT_OVERLOAD_FACTOR
-        tcp = cfg.get("target_constancy_percent", DEFAULT_TARGET_CONSTANCY_PERCENT)
-        try:
-            tcp = float(tcp)
-        except (TypeError, ValueError):
-            tcp = DEFAULT_TARGET_CONSTANCY_PERCENT
-        shm = cfg.get("scale_hysteresis_mm", DEFAULT_SCALE_HYSTERESIS_MM)
-        try:
-            shm = float(shm)
-        except (TypeError, ValueError):
-            shm = DEFAULT_SCALE_HYSTERESIS_MM
-        return {
-            "printer_name": cfg.get("printer_name", DEFAULT_PRINTER),
-            "print_save_path": cfg.get("print_save_path") or os.getcwd(),
-            "serial_port": cfg.get("serial_port", DEFAULT_SERIAL_PORT),
-            "overload_factor": of,
-            "target_constancy_percent": tcp,
-            "scale_hysteresis_mm": shm,
-        }
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
     except Exception:
-        return {
-            "printer_name": DEFAULT_PRINTER,
-            "print_save_path": os.getcwd(),
-            "serial_port": DEFAULT_SERIAL_PORT,
-            "overload_factor": DEFAULT_OVERLOAD_FACTOR,
-            "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
-            "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
-        }
+        return {}
+
+
+def _compute_overload_factor(disk):
+    if "overload_factor" in disk:
+        try:
+            return float(disk["overload_factor"])
+        except (TypeError, ValueError):
+            pass
+    if "overload_factor_min" in disk and "overload_factor_max" in disk:
+        try:
+            return (float(disk["overload_factor_min"]) + float(disk["overload_factor_max"])) / 2
+        except (TypeError, ValueError):
+            pass
+    return DEFAULT_OVERLOAD_FACTOR
+
+
+def load_config():
+    """
+    加载配置（内存合并：默认值 + 磁盘上的键）。
+    返回 dict 含 combobox_history；不会在启动时改写 app_config.json。
+    """
+    disk = _read_raw_config()
+    out = {
+        "printer_name": DEFAULT_PRINTER,
+        "print_save_path": DEFAULT_SAVE_PATH or os.getcwd(),
+        "serial_port": DEFAULT_SERIAL_PORT,
+        "overload_factor": DEFAULT_OVERLOAD_FACTOR,
+        "target_constancy_percent": DEFAULT_TARGET_CONSTANCY_PERCENT,
+        "scale_hysteresis_mm": DEFAULT_SCALE_HYSTERESIS_MM,
+        "combobox_history": _default_combobox_history(),
+    }
+
+    for k, v in disk.items():
+        if k == "combobox_history" and isinstance(v, dict):
+            ch = out["combobox_history"]
+            for hk, hv in v.items():
+                if isinstance(hv, list):
+                    ch[hk] = [str(x) for x in hv]
+                elif hv is not None:
+                    ch[hk] = [str(hv)]
+        else:
+            out[k] = v
+
+    for k in DEFAULT_COMBOBOX_HISTORY:
+        if k not in out["combobox_history"]:
+            out["combobox_history"][k] = list(DEFAULT_COMBOBOX_HISTORY[k])
+
+    out["overload_factor"] = _compute_overload_factor(disk)
+    try:
+        out["target_constancy_percent"] = float(
+            out.get("target_constancy_percent", DEFAULT_TARGET_CONSTANCY_PERCENT)
+        )
+    except (TypeError, ValueError):
+        out["target_constancy_percent"] = DEFAULT_TARGET_CONSTANCY_PERCENT
+    try:
+        out["scale_hysteresis_mm"] = float(
+            out.get("scale_hysteresis_mm", DEFAULT_SCALE_HYSTERESIS_MM)
+        )
+    except (TypeError, ValueError):
+        out["scale_hysteresis_mm"] = DEFAULT_SCALE_HYSTERESIS_MM
+
+    if disk.get("printer_name") is not None:
+        out["printer_name"] = str(disk["printer_name"])
+    psp = disk.get("print_save_path")
+    if psp is not None and str(psp).strip():
+        out["print_save_path"] = str(psp).strip()
+    else:
+        out["print_save_path"] = out["print_save_path"] or os.getcwd()
+    if disk.get("serial_port") is not None:
+        out["serial_port"] = str(disk["serial_port"]).strip() or DEFAULT_SERIAL_PORT
+
+    return out
 
 
 def save_config(printer_name=None, print_save_path=None, serial_port=None,
                 overload_factor=None, target_constancy_percent=None,
                 scale_hysteresis_mm=None):
-    """保存配置（仅更新传入的字段）"""
+    """
+    保存配置：在磁盘当前内容基础上只改传入字段，保留 combobox_history 及未知扩展键。
+    """
     path = _config_path()
     cfg = load_config()
     if printer_name is not None:
@@ -151,16 +198,11 @@ def get_scale_hysteresis_delta_mm(working_displacement_mm=None):
 
 def get_combobox_history(key):
     """获取某个 combobox 的历史输入列表"""
-    path = _config_path()
-    if not os.path.exists(path):
+    history = load_config().get("combobox_history") or {}
+    if not isinstance(history, dict):
         return []
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        history = cfg.get("combobox_history", {})
-        return history.get(key, [])
-    except Exception:
-        return []
+    raw = history.get(key, [])
+    return list(raw) if isinstance(raw, list) else []
 
 
 def save_combobox_item(key, value):
@@ -170,17 +212,17 @@ def save_combobox_item(key, value):
         return
     path = _config_path()
     try:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        else:
-            cfg = {}
-        history = cfg.setdefault("combobox_history", {})
-        items = history.get(key, [])
+        cfg = load_config()
+        history = cfg.setdefault("combobox_history", _default_combobox_history())
+        if not isinstance(history, dict):
+            history = _default_combobox_history()
+            cfg["combobox_history"] = history
+        items = list(history.get(key, []))
         if value in items:
             items.remove(value)
         items.append(value)
         history[key] = items
+        cfg["combobox_history"] = history
         with open(path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except Exception:

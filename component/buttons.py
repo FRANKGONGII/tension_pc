@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt,pyqtSignal
 
 # 图表显示button1
 class ChartButton1(QPushButton):
-    def __init__(self, text="算法1"):
+    def __init__(self, text="恒力吊架测试算法"):
         super().__init__(text)
 
 # 图表显示button2（算法2已注释）

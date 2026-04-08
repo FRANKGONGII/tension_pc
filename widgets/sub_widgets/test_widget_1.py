@@ -38,7 +38,7 @@ class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
     received_data_changed = pyqtSignal(object)
     test_started = pyqtSignal()   # 点击开始后发射，用于禁用测试入库
-    test_ended = pyqtSignal()    # 点击结束后发射，用于启用测试入库
+    test_ended = pyqtSignal()    # 结束流程（含重算与导出图）全部成功后发射，用于启用测试入库
 
     show_buttons = False
     _show_dot_duration = 10
@@ -99,7 +99,6 @@ class TestViewWidget_1(QWidget):
         # 图表组件
         # 下面两个是控制开始测试和结束的显示
         show_buttons = True
-        self.if_start = True
         self.restart = False
         self.plot_widget = pg.PlotWidget()
         # 轴范围变量
@@ -152,8 +151,8 @@ class TestViewWidget_1(QWidget):
         button_layout.addWidget(self.btn_zero)
         button_layout.addWidget(self.btn1)
         button_layout.addWidget(self.btn2)
-        self.btn1.setEnabled(self.if_start)
-        self.btn2.setEnabled(not self.if_start)
+        # 初始：仅可记录初始值；开始/结束禁用
+        self._set_test_buttons_pre_record()
 
         # 绑定槽函数
         self.btn1.clicked.connect(self.on_start_clicked)
@@ -276,6 +275,24 @@ class TestViewWidget_1(QWidget):
         """标记当前数据已入库"""
         self._has_saved = True
 
+    def _set_test_buttons_pre_record(self):
+        """初始 / 一次测试结束后：仅可记录初始值"""
+        self.btn_zero.setEnabled(True)
+        self.btn1.setEnabled(False)
+        self.btn2.setEnabled(False)
+
+    def _set_test_buttons_after_record(self):
+        """已成功记录初始值：可开始测试"""
+        self.btn_zero.setEnabled(False)
+        self.btn1.setEnabled(True)
+        self.btn2.setEnabled(False)
+
+    def _set_test_buttons_during_test(self):
+        """测试中：可结束"""
+        self.btn_zero.setEnabled(False)
+        self.btn1.setEnabled(False)
+        self.btn2.setEnabled(True)
+
     def change_retest_visible(self):
         if self.show_buttons:
             self.btn1.setVisible(False)
@@ -286,6 +303,7 @@ class TestViewWidget_1(QWidget):
             self.btn2.setVisible(True)
             self.btn_zero.setVisible(True)
             self.show_buttons = False
+            self._set_test_buttons_pre_record()
 
     def on_start_clicked(self):
         if self.btn1.isEnabled():
@@ -325,8 +343,7 @@ class TestViewWidget_1(QWidget):
                         combo.addItem(val)
                     save_combobox_item(hkey, val)
 
-            self.btn1.setEnabled(False)
-            self.btn2.setEnabled(True)
+            self._set_test_buttons_during_test()
             self.test_started.emit()
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.time_input.setText(now_time)
@@ -392,16 +409,12 @@ class TestViewWidget_1(QWidget):
     def on_zero_clicked(self):
         """记录x初始值，用于后续去0"""
         print(f"尝试记录x初始值: {self._latest_x_value},已记录y初始值: {self._latest_y_value}")
-        if self._latest_x_value is not None:
-            # 记录最新的x值作为初始值
-            # DEBUG：初始值先给个100
+        # 需已收到串口数据（y 在首包前为 None）
+        if self._latest_y_value is not None:
             self._x_initial = self._latest_x_value
             self._y_initial = self._latest_y_value
-            # self._x_initial = 0
-            # self._y_initial = 0
-            # self._x_initial = 100
-            # print(f"记录x初始值: {self._x_initial}")
             QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}")
+            self._set_test_buttons_after_record()
         else:
             QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
 
@@ -410,9 +423,6 @@ class TestViewWidget_1(QWidget):
             self.restart = True
             # 逻辑处理
             # print("结束按钮被点击")
-            self.btn2.setEnabled(False)
-            self.btn1.setEnabled(True)
-            self.test_ended.emit()
             # 后续如需重新开始，也可以再启用 start
             self.serial_reader.stop()
             # 停止测试线程
@@ -452,6 +462,10 @@ class TestViewWidget_1(QWidget):
             self.reanalyze_and_rearrange_labels()
             
             self.save_high_res_chart()
+
+            # 结束成功：禁用结束，恢复为可再次记录初始值；再通知主窗口可测试入库
+            self._set_test_buttons_pre_record()
+            self.test_ended.emit()
 
             # # 清空x轴初始值和拔销值
             # self._x_initial = 0
