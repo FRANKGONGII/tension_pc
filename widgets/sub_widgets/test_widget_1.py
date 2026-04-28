@@ -33,7 +33,7 @@ SCALE_MAP = {
     136: (0, 400, 0, 500),
 }
 DEFAULT_SCALE = (0, 200, 0, 500)
-# 未点击「开始」时，收到这些 status 自动执行与「记录初始值」相同逻辑（可反复刷新 x0/y0）
+# 未点击「开始」前，收到这些 status 会驱动「记录初始值/开始」自动逻辑
 RECORD_INITIAL_STATUS_VALUES = frozenset((42, 74, 138))
 
 class TestViewWidget_1(QWidget):
@@ -98,8 +98,10 @@ class TestViewWidget_1(QWidget):
 
     def __init__(self):
         super().__init__()
-        # 是否已在当前流程中点击过「开始」（结束前为 True）；用于禁止开始后的 status 自动去零
+        # 开始按钮已隐藏，开始行为由串口数据驱动；用标志防止重复开始
         self._test_has_started = False
+        # 是否已完成「记录初始值(去0)」
+        self._has_recorded_initial = False
         # 图表组件
         # 下面两个是控制开始测试和结束的显示
         show_buttons = True
@@ -287,13 +289,13 @@ class TestViewWidget_1(QWidget):
 
     def _set_test_buttons_after_record(self):
         """已成功记录初始值：可开始测试"""
-        self.btn_zero.setEnabled(False)
+        self.btn_zero.setEnabled(True)
         self.btn1.setEnabled(True)
         self.btn2.setEnabled(False)
 
     def _set_test_buttons_during_test(self):
         """测试中：可结束"""
-        self.btn_zero.setEnabled(False)
+        self.btn_zero.setEnabled(True)
         self.btn1.setEnabled(False)
         self.btn2.setEnabled(True)
 
@@ -303,132 +305,180 @@ class TestViewWidget_1(QWidget):
             self.btn2.setVisible(False)
             self.btn_zero.setVisible(False)
         else:
-            self.btn1.setVisible(True)
+            # 隐藏「开始」按钮：开始行为由 handle_data 自动触发
+            self.btn1.setVisible(False)
             self.btn2.setVisible(True)
             self.btn_zero.setVisible(True)
             self.show_buttons = False
             self._set_test_buttons_pre_record()
 
-    def on_start_clicked(self):
-        if self.btn1.isEnabled():
-            # 检查是否已输入工作载荷
-            try:
-                base_value = self.input_manager.get_value("工作载荷")
-                # 确保工作载荷不为空且是有效的数字，并且大于0
-                if not base_value or float(base_value) <= 0:
-                    QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
-                    return
-            except (ValueError, TypeError):
-                QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
-                return
-            
-            # 检查是否已输入工作位移
-            try:
-                displacement_value = self.input_manager.get_value("工作位移")
-                # 确保工作位移不为空且是有效的数字，并且大于0
-                if not displacement_value or float(displacement_value) <= 0:
-                    QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
-                    return
-            except (ValueError, TypeError):
-                QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
-                return
-            # 检查是否已输入出厂编号（字符串，非空即可）
-            factory_number = self.input_manager.get_value("出厂编号")
-            if not factory_number or not str(factory_number).strip():
-                QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
-                return
-            
-            # 保存历史 combobox 值到配置
-            for hkey in self._history_combobox_keys:
-                val = str(self.inputs[hkey].currentText()).strip()
-                if val:
-                    combo = self.inputs[hkey]
-                    if combo.findText(val) == -1:
-                        combo.addItem(val)
-                    save_combobox_item(hkey, val)
-
-            self._test_has_started = True
-            self._set_test_buttons_during_test()
-            self.test_started.emit()
-            now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.time_input.setText(now_time)
-            inputManager.set_value(self.input_manager, "试验时间", now_time)
-            # 清空原先数据
-            self._cnt_receive_dot = 0
-            self._record_dot_x = []
-            self._record_dot_y = []
-            self._record_dot_highlight = []
-            self._record_dot_side = []
-            self._has_saved = False  # 新测试开始，重置入库标记
-            self._scale_switched = False
-            self._filter_x_window = []
-            self._scale_replay_x = []
-            # 重置去0逻辑相关变量
-            self._y_start = None
-            self._has_recorded_start = False
-            # 重置U型曲线标签方向控制变量
-            self._label_direction = "right"  # 初始设为右侧
-            self._previous_x_for_direction = None
-            self._direction_switched = False  # 重置切换标记
-            self._existing_file_path = None
-            # 初始化基于工作位移的高亮点控制变量
-            try:
-                working_displacement = float(self.input_manager.get_value("工作位移"))
-                self._working_displacement = working_displacement
-                # 间隔 = 工作位移/10，高亮数量 = ceil(工作位移/间隔) ≈ 10，随工作位移缩放
-                self._highlight_step = 15
-                self._y_start_value = None  # 将在第一个数据点记录
-                self._y_max_value = None  # 将在测试过程中更新
-                self._highlighted_displacements = set()  # 已打点的位移值集合
-                self._is_increasing_phase = True  # 初始为增加阶段（压的过程）
-                self._previous_y = None  # 上一个y值
-                self.stack_cnt = []  # 用于记录拉过程中打点位置
-                self._max_highlight_count = max(10, int(working_displacement / self._highlight_step) + 2)  # 按实际工作位移决定数量上限
-                # print(f"初始化高亮点控制：工作位移={working_displacement}, 间隔={self._highlight_step}, 最大高亮数≈{self._max_highlight_count}")
-            except (ValueError, TypeError):
-                self._highlight_step = None
-                self._working_displacement = None
-                self._max_highlight_count = 10
-                self.stack_cnt = []
-            if self.restart == True:
-                self.plot_widget.clear()
-                self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
-                self.restart = False
-            # 插入边界线
-            base = float(self.input_manager.get_value("工作载荷"))/1000
-            line1 = InfiniteLine(pos=base * 1.06, angle=90, pen='r')
-            line2 = InfiniteLine(pos=base * 0.94, angle=90, pen='g')
-            for key in ["恒定度", "位移终止点值", "位移起始点值", "实测位移值", "载荷偏差度", "超载试验值", "起始-终止时间", "超载试验保持时间", "锁定位置", "测试结果"]:
-                self.inputs[key].setText("")
-                self.input_manager.set_value(key, "")
-            self.plot_widget.addItem(line1)
-            self.plot_widget.addItem(line2)
-            # # 开始生成数据
-            # TODO:正式时删除
-            # self.serial_reader.start_test_thread()  # 启动测试线程
-            self.serial_reader.start()
-            
-
-
     def _apply_record_initial_from_latest(self, show_message=True):
-        """用当前最新采样记录 x/y 初始值（去0），并切换到可「开始」状态。返回是否成功。"""
-        print(f"尝试记录x初始值: {self._latest_x_value},已记录y初始值: {self._latest_y_value}")
+        """用当前最新采样记录 x/y 初始值（去0），并切换到可开始状态。返回是否成功。"""
+        # 需已收到串口数据（y 在首包前为 None）
         if self._latest_y_value is None:
             if show_message:
                 QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
             return False
+
         self._x_initial = self._latest_x_value
         self._y_initial = self._latest_y_value
+        self._has_recorded_initial = True
         if show_message:
             QMessageBox.information(
-                self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}"
+                self,
+                "提示",
+                f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}",
             )
         self._set_test_buttons_after_record()
         return True
 
+    def _validate_start_prereqs(self, show_message=True):
+        """校验开始测试的前置条件。"""
+        # 检查是否已输入工作载荷
+        try:
+            base_value = self.input_manager.get_value("工作载荷")
+            if not base_value or float(base_value) <= 0:
+                if show_message:
+                    QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
+                return False
+        except (ValueError, TypeError):
+            if show_message:
+                QMessageBox.warning(self, "警告", "请先输入有效的工作载荷值")
+            return False
+
+        # 检查是否已输入工作位移
+        try:
+            displacement_value = self.input_manager.get_value("工作位移")
+            if not displacement_value or float(displacement_value) <= 0:
+                if show_message:
+                    QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
+                return False
+        except (ValueError, TypeError):
+            if show_message:
+                QMessageBox.warning(self, "警告", "请先输入有效的工作位移值")
+            return False
+
+        # 检查是否已输入出厂编号（字符串，非空即可）
+        factory_number = self.input_manager.get_value("出厂编号")
+        if not factory_number or not str(factory_number).strip():
+            if show_message:
+                QMessageBox.warning(self, "警告", "请先输入有效的出厂编号值")
+            return False
+
+        return True
+
+    def _start_test_core(self):
+        """执行原「开始」按钮的核心开始流程（不含校验/去0判断）。"""
+        # 保存历史 combobox 值到配置
+        for hkey in self._history_combobox_keys:
+            val = str(self.inputs[hkey].currentText()).strip()
+            if val:
+                combo = self.inputs[hkey]
+                if combo.findText(val) == -1:
+                    combo.addItem(val)
+                save_combobox_item(hkey, val)
+
+        self._set_test_buttons_during_test()
+        self.test_started.emit()
+        now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.time_input.setText(now_time)
+        inputManager.set_value(self.input_manager, "试验时间", now_time)
+
+        # 清空原先数据
+        self._cnt_receive_dot = 0
+        self._record_dot_x = []
+        self._record_dot_y = []
+        self._record_dot_highlight = []
+        self._record_dot_side = []
+        self._has_saved = False  # 新测试开始，重置入库标记
+        self._scale_switched = False
+        self._filter_x_window = []
+        self._scale_replay_x = []
+
+        # 重置去0逻辑相关变量
+        self._y_start = None
+        self._has_recorded_start = False
+        # 重置U型曲线标签方向控制变量
+        self._label_direction = "right"  # 初始设为右侧
+        self._previous_x_for_direction = None
+        self._direction_switched = False  # 重置切换标记
+        self._existing_file_path = None
+
+        # 初始化基于工作位移的高亮点控制变量
+        try:
+            working_displacement = float(self.input_manager.get_value("工作位移"))
+            self._working_displacement = working_displacement
+            self._highlight_step = 15
+            self._y_start_value = None  # 将在第一个数据点记录
+            self._y_max_value = None  # 将在测试过程中更新
+            self._highlighted_displacements = set()
+            self._is_increasing_phase = True
+            self._previous_y = None
+            self.stack_cnt = []
+            self._max_highlight_count = max(
+                10, int(working_displacement / self._highlight_step) + 2
+            )
+        except (ValueError, TypeError):
+            self._highlight_step = None
+            self._working_displacement = None
+            self._max_highlight_count = 10
+            self.stack_cnt = []
+
+        if self.restart == True:
+            self.plot_widget.clear()
+            self.curve = self.plot_widget.plot(
+                [], [], pen="b", symbol="o", symbolSize=0.5, symbolBrush="b"
+            )
+            self.restart = False
+
+        # 插入边界线
+        base = float(self.input_manager.get_value("工作载荷")) / 1000
+        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen="r")
+        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen="g")
+        for key in [
+            "恒定度",
+            "位移终止点值",
+            "位移起始点值",
+            "实测位移值",
+            "载荷偏差度",
+            "超载试验值",
+            "起始-终止时间",
+            "超载试验保持时间",
+            "锁定位置",
+            "测试结果",
+        ]:
+            self.inputs[key].setText("")
+            self.input_manager.set_value(key, "")
+        self.plot_widget.addItem(line1)
+        self.plot_widget.addItem(line2)
+
+        # # 开始生成数据
+        # self.serial_reader.start_test_thread()  # 启动测试线程（测试用）
+        self.serial_reader.start()
+
+    def _try_start_test(self, show_message=True):
+        """在满足条件时执行开始；支持自动/手动入口。返回是否真正开始。"""
+        if self._test_has_started:
+            return False
+        if not self._has_recorded_initial:
+            return False
+        if not self._validate_start_prereqs(show_message=show_message):
+            return False
+
+        self._test_has_started = True
+        self._start_test_core()
+        return True
+
+    def on_start_clicked(self):
+        # 「开始」按钮已隐藏，但保留入口以兼容旧逻辑/调试
+        if self.btn1.isEnabled():
+            self._try_start_test(show_message=True)
+            
+
+
     # 点击结束要计算一些项目，并忽略后续数据
     def on_zero_clicked(self):
-        """记录x初始值，用于后续去0（与 status 触发的自动逻辑共用实现）"""
+        """记录x初始值，用于后续去0"""
         self._apply_record_initial_from_latest(show_message=True)
 
     def on_end_clicked(self):
@@ -480,15 +530,6 @@ class TestViewWidget_1(QWidget):
             self._test_has_started = False
             self._set_test_buttons_pre_record()
             self.test_ended.emit()
-
-            # # 清空x轴初始值和拔销值
-            # self._x_initial = 0
-            # self._y_initial = 0
-            # self._pin_pull_value = None
-
-            # TODO:正式删除
-            # self.serial_reader.stop_test_thread()
-            # self.serial_reader.end()
 
     def _calibrate_constancy_on_recorded_series_if_needed(self):
         """固定参数已在点击缩放时确定，测试中已实时变换；结束无需再改力值。"""
@@ -667,7 +708,7 @@ class TestViewWidget_1(QWidget):
         highlighted_indices = [i for i, h in enumerate(self._record_dot_highlight) if h]
         highlighted_x = [x_data[i] for i in highlighted_indices]
         highlighted_y = [y_data[i] for i in highlighted_indices]
-        ax.scatter(highlighted_x, highlighted_y, color='red', s=15, edgecolor='black', alpha=1.0)
+        ax.scatter(highlighted_x, highlighted_y, color='red', s=10, edgecolor='black', alpha=1.0)
 
         x_offset = (self.current_x_max - self.current_x_min) * 0.06
         y_offset = 0
@@ -754,16 +795,17 @@ class TestViewWidget_1(QWidget):
         self._latest_x_value = x
         self._latest_y_value = y
 
-        # 未点击「开始」时：status 为 42/74/138 时自动执行「记录初始值」（可反复刷新）；开始后忽略
+        # 未「开始」前且已经去0后：根据 status 自动完成 开始」行为（只会开始一次）
         if not self._test_has_started:
             try:
                 st = int(status)
             except (TypeError, ValueError):
                 st = None
-            if st in RECORD_INITIAL_STATUS_VALUES and y is not None:
-                self._apply_record_initial_from_latest(show_message=False)
+            if st in RECORD_INITIAL_STATUS_VALUES:
+                if self._has_recorded_initial and not self._test_has_started:
+                    self._try_start_test(show_message=False)
             if st in SCALE_MAP:
-                scale = SCALE_MAP.get(status)
+                scale = SCALE_MAP.get(status, DEFAULT_SCALE)
                 self.set_x_range(scale[0], scale[1])
                 self.set_y_range(scale[2], scale[3])
 

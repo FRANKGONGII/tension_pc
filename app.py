@@ -197,7 +197,7 @@ class MainWindow(QMainWindow):
             chart_widget1.stack_cnt = []
             
         chart_widget1.plot_widget.clear()
-        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=5, symbolBrush='b')
+        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
         chart_widget1.restart = False
         chart_widget1.adjust_center = -1
         chart_widget1.adjust_number = 0.0
