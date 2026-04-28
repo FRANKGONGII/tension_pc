@@ -113,7 +113,7 @@ class SerialReader(QObject):
                                     if len(data_bytes) >= 13:  # 确保长度够
                                         force = int.from_bytes(data_bytes[7:9], byteorder="big", signed=False)
                                         distance = int.from_bytes(data_bytes[9:11], byteorder="big", signed=False)
-                                        status = int.from_bytes(data_bytes[11:13], byteorder="big", signed=False)
+                                        status = int.from_bytes(data_bytes[11:12], byteorder="big", signed=False)
 
                                         parsed = {
                                             "raw": one_record,

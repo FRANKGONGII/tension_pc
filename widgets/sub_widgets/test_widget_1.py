@@ -28,11 +28,13 @@ import numpy as np
 import random
 
 SCALE_MAP = {
-    10240: (0, 10, 0, 500),
-    18432: (0, 200, 0, 500),
-    34816: (0, 400, 0, 500),
+    40: (0, 10, 0, 500),
+    72: (0, 200, 0, 500),
+    136: (0, 400, 0, 500),
 }
 DEFAULT_SCALE = (0, 200, 0, 500)
+# 未点击「开始」时，收到这些 status 自动执行与「记录初始值」相同逻辑（可反复刷新 x0/y0）
+RECORD_INITIAL_STATUS_VALUES = frozenset((42, 74, 138))
 
 class TestViewWidget_1(QWidget):
     mouse_data_changed = pyqtSignal(object)
@@ -96,6 +98,8 @@ class TestViewWidget_1(QWidget):
 
     def __init__(self):
         super().__init__()
+        # 是否已在当前流程中点击过「开始」（结束前为 True）；用于禁止开始后的 status 自动去零
+        self._test_has_started = False
         # 图表组件
         # 下面两个是控制开始测试和结束的显示
         show_buttons = True
@@ -343,6 +347,7 @@ class TestViewWidget_1(QWidget):
                         combo.addItem(val)
                     save_combobox_item(hkey, val)
 
+            self._test_has_started = True
             self._set_test_buttons_during_test()
             self.test_started.emit()
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -405,18 +410,26 @@ class TestViewWidget_1(QWidget):
             
 
 
+    def _apply_record_initial_from_latest(self, show_message=True):
+        """用当前最新采样记录 x/y 初始值（去0），并切换到可「开始」状态。返回是否成功。"""
+        print(f"尝试记录x初始值: {self._latest_x_value},已记录y初始值: {self._latest_y_value}")
+        if self._latest_y_value is None:
+            if show_message:
+                QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
+            return False
+        self._x_initial = self._latest_x_value
+        self._y_initial = self._latest_y_value
+        if show_message:
+            QMessageBox.information(
+                self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}"
+            )
+        self._set_test_buttons_after_record()
+        return True
+
     # 点击结束要计算一些项目，并忽略后续数据
     def on_zero_clicked(self):
-        """记录x初始值，用于后续去0"""
-        print(f"尝试记录x初始值: {self._latest_x_value},已记录y初始值: {self._latest_y_value}")
-        # 需已收到串口数据（y 在首包前为 None）
-        if self._latest_y_value is not None:
-            self._x_initial = self._latest_x_value
-            self._y_initial = self._latest_y_value
-            QMessageBox.information(self, "提示", f"已记录x初始值: {self._x_initial},已记录y初始值: {self._y_initial}")
-            self._set_test_buttons_after_record()
-        else:
-            QMessageBox.warning(self, "警告", "暂无数据可记录初始值")
+        """记录x初始值，用于后续去0（与 status 触发的自动逻辑共用实现）"""
+        self._apply_record_initial_from_latest(show_message=True)
 
     def on_end_clicked(self):
         if self.btn2.isEnabled():
@@ -464,6 +477,7 @@ class TestViewWidget_1(QWidget):
             self.save_high_res_chart()
 
             # 结束成功：禁用结束，恢复为可再次记录初始值；再通知主窗口可测试入库
+            self._test_has_started = False
             self._set_test_buttons_pre_record()
             self.test_ended.emit()
 
@@ -740,11 +754,18 @@ class TestViewWidget_1(QWidget):
         self._latest_x_value = x
         self._latest_y_value = y
 
-        if not self._scale_switched and self.serial_reader._sending_data:
-            scale = SCALE_MAP.get(status, DEFAULT_SCALE)
-            self.set_x_range(scale[0], scale[1])
-            self.set_y_range(scale[2], scale[3])
-            self._scale_switched = True
+        # 未点击「开始」时：status 为 42/74/138 时自动执行「记录初始值」（可反复刷新）；开始后忽略
+        if not self._test_has_started:
+            try:
+                st = int(status)
+            except (TypeError, ValueError):
+                st = None
+            if st in RECORD_INITIAL_STATUS_VALUES and y is not None:
+                self._apply_record_initial_from_latest(show_message=False)
+            if st in SCALE_MAP:
+                scale = SCALE_MAP.get(status)
+                self.set_x_range(scale[0], scale[1])
+                self.set_y_range(scale[2], scale[3])
 
         # 实现x轴去0逻辑：如果已经记录了初始值，则减去该值
         # print("init", self._latest_x_value)
