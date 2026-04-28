@@ -197,7 +197,7 @@ class MainWindow(QMainWindow):
             chart_widget1.stack_cnt = []
             
         chart_widget1.plot_widget.clear()
-        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
+        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='black', symbol='o', symbolSize=0.5, symbolBrush='black')
         chart_widget1.restart = False
         chart_widget1.adjust_center = -1
         chart_widget1.adjust_number = 0.0
@@ -250,6 +250,17 @@ class MainWindow(QMainWindow):
 
         # 3. 入库成功提示
         QMessageBox.information(self, "提示", "入库成功！")
+
+        # 4. 入库后：清空“缩放/校准”参数，使其仅对入库前的测试有效
+        # 如需后续测试继续缩放，需要再次点击「数据编辑」重新计算参数
+        cw = self.chart_widget1
+        cw.adjust_center = -1
+        cw.adjust_number = 0.0
+        cw.adjust_constancy_m_ref = None
+        cw.adjust_constancy_M_ref = None
+        cw.adjust_constancy_phi = 0.0
+        cw.adjust_constancy_gamma = 2.0
+        cw._scale_replay_x = []
 
     def edit_data(self):
         w = self.chart_widget1

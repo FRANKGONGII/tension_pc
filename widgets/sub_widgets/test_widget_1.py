@@ -427,7 +427,7 @@ class TestViewWidget_1(QWidget):
         if self.restart == True:
             self.plot_widget.clear()
             self.curve = self.plot_widget.plot(
-                [], [], pen="b", symbol="o", symbolSize=0.5, symbolBrush="b"
+                [], [], pen="black", symbol="o", symbolSize=0.5, symbolBrush="black"
             )
             self.restart = False
 
@@ -606,10 +606,10 @@ class TestViewWidget_1(QWidget):
         # 把 curve 存起来，以便后续更新
         self.curve = self.plot_widget.plot(
             x, y,
-            pen='b',
+            pen='black',
             symbol='o',
             symbolSize=0.5,
-            symbolBrush='b'
+            symbolBrush='black'
         )
         # 设置移动获取坐标
         self.plot_widget.getViewBox().invertY(True)
@@ -660,7 +660,7 @@ class TestViewWidget_1(QWidget):
     def _rebuild_pyqt_chart_with_highlights(self):
         """按当前 _record_dot_x/y 重画主曲线、公差线及高亮散点与标签（x 被事后校准改写后须调用）。"""
         self.plot_widget.clear()
-        self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
+        self.curve = self.plot_widget.plot([], [], pen='black', symbol='o', symbolSize=0.5, symbolBrush='black')
         self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
         self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
         try:
