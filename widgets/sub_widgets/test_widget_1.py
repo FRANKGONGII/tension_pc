@@ -102,6 +102,8 @@ class TestViewWidget_1(QWidget):
         self._test_has_started = False
         # 是否已完成「记录初始值(去0)」
         self._has_recorded_initial = False
+        # 缩放模式下：位移增大阶段记录的 (y, x)，供下降阶段低于绿色公差线时对照修正
+        self._ascending_y_x_samples = []
         # 图表组件
         # 下面两个是控制开始测试和结束的显示
         show_buttons = True
@@ -394,6 +396,7 @@ class TestViewWidget_1(QWidget):
         self._scale_switched = False
         self._filter_x_window = []
         self._scale_replay_x = []
+        self._ascending_y_x_samples = []
 
         # 重置去0逻辑相关变量
         self._y_start = None
@@ -766,6 +769,51 @@ class TestViewWidget_1(QWidget):
         if hasattr(self, 'plot_widget'):
             self.plot_widget.setYRange(y_min, y_max)
 
+    @staticmethod
+    def _lookup_x_at_nearest_y(y_target, samples):
+        """在 (y, x) 列表中按位移 y 最近邻取 x。"""
+        if not samples:
+            return None
+        best_x, best_d = None, float("inf")
+        for yi, xi in samples:
+            d = abs(float(yi) - float(y_target))
+            if d < best_d:
+                best_d, best_x = d, float(xi)
+        return best_x
+
+    def _apply_descent_scaling_low_guard(self, x, y, cal_series):
+        """
+        缩放路径下，位移相对上一拍减小时，若缩放后 x 仍低于 base*0.94，则按与上升段同位移参考修正。
+        增量取 (base*0.94 - x) 与 (x_up - base*0.94) 的算术平均对应的 x 位置，并夹在 [low, x_up]。
+        """
+        if cal_series is None or len(cal_series) < 1:
+            return x, cal_series
+        if self._previous_y is None or float(y) >= float(self._previous_y):
+            return x, cal_series
+        try:
+            base_kn = float(self.input_manager.get_value("工作载荷")) / 1000.0
+            low = base_kn * 0.94
+        except (TypeError, ValueError):
+            return x, cal_series
+        x = float(x)
+        if x >= low - 1e-15:
+            return x, cal_series
+        x_up = self._lookup_x_at_nearest_y(y, self._ascending_y_x_samples)
+        if x_up is None:
+            x_new = low
+        elif x_up <= low + 1e-15:
+            x_new = max(x, low)
+        else:
+            # 用户要求增量介于 (low - x) 与 (x_up - low) 之间：二者平均即 (x_up - x)/2 的抬升，等价于 x 与 x_up 的中点再限制在公差内
+            delta_a = low - x
+            delta_b = x_up - low
+            delta = 0.5 * (delta_a + delta_b)
+            x_new = x + delta
+            x_new = max(x_new, low)
+            x_new = min(x_new, x_up)
+        patched = cal_series[:-1] + [x_new]
+        return x_new, patched
+
     def on_mouse_moved(self, evt):
         pos = evt
         mouse_point = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
@@ -874,6 +922,12 @@ class TestViewWidget_1(QWidget):
                 if len(self._filter_x_window) > self._FILTER_WINDOW_N:
                     self._filter_x_window.pop(0)
                 x = statistics.median(self._filter_x_window)
+
+        # 缩放路径：记录位移增大阶段的 (y, x)，供下降时低于绿色公差线的修正参考（在公差修正之前写入）
+        if cal_series is not None:
+            if self._previous_y is None or float(y) > float(self._previous_y):
+                self._ascending_y_x_samples.append((float(y), float(x)))
+            x, cal_series = self._apply_descent_scaling_low_guard(x, y, cal_series)
 
         _emit_display(x)
 
