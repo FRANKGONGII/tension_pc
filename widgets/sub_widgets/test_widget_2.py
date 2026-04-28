@@ -152,7 +152,7 @@ class TestViewWidget_2(QWidget):
         # 示例数据
         x = [0, 1, 2, 3, 4, 5]
         y = [0, 10, 5, 20, 15, 25]
-        self.plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), symbol='o')
+        self.plot_widget.plot(x, y, pen=pg.mkPen(color='black', width=2), symbol='o')
         self.plot_widget.scene().sigMouseMoved.connect(self.on_mouse_moved)
 
     def on_mouse_moved(self, evt):

@@ -427,7 +427,7 @@ class TestViewWidget_1(QWidget):
         if self.restart == True:
             self.plot_widget.clear()
             self.curve = self.plot_widget.plot(
-                [], [], pen="b", symbol="o", symbolSize=0.5, symbolBrush="b"
+                [], [], pen="black", symbol="o", symbolSize=0.5, symbolBrush="black"
             )
             self.restart = False
 
@@ -606,10 +606,10 @@ class TestViewWidget_1(QWidget):
         # 把 curve 存起来，以便后续更新
         self.curve = self.plot_widget.plot(
             x, y,
-            pen='b',
+            pen='black',
             symbol='o',
             symbolSize=0.5,
-            symbolBrush='b'
+            symbolBrush='black'
         )
         # 设置移动获取坐标
         self.plot_widget.getViewBox().invertY(True)
@@ -629,7 +629,7 @@ class TestViewWidget_1(QWidget):
         highlight = pg.ScatterPlotItem(
             [x], [y],
             symbol='o',
-            size=14,
+            size=8,
             brush='r',
             pen='k'
         )
@@ -660,7 +660,7 @@ class TestViewWidget_1(QWidget):
     def _rebuild_pyqt_chart_with_highlights(self):
         """按当前 _record_dot_x/y 重画主曲线、公差线及高亮散点与标签（x 被事后校准改写后须调用）。"""
         self.plot_widget.clear()
-        self.curve = self.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
+        self.curve = self.plot_widget.plot([], [], pen='black', symbol='o', symbolSize=0.5, symbolBrush='black')
         self.plot_widget.setXRange(self.current_x_min, self.current_x_max)
         self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
         try:
@@ -699,9 +699,9 @@ class TestViewWidget_1(QWidget):
         fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # 设置高DPI以获得更高质量
 
         # 绘制连线
-        ax.plot(self._record_dot_x, self._record_dot_y, color='blue', linewidth=0.8, alpha=0.7)
+        ax.plot(self._record_dot_x, self._record_dot_y, color='black', linewidth=0.5, alpha=0.7)
         # 绘制数据点
-        ax.scatter(self._record_dot_x, self._record_dot_y, color='blue', s=0.5, alpha=0.7)
+        ax.scatter(self._record_dot_x, self._record_dot_y, color='black', s=0.5, alpha=0.7)
 
         # n = len(self._record_dot_x)
         x_data, y_data = self._record_dot_x, self._record_dot_y
@@ -941,6 +941,7 @@ class TestViewWidget_1(QWidget):
             self._record_dot_x = cal_series
         else:
             self._record_dot_x.append(x)
+
         self._record_dot_highlight.append(should_highlight)
         self._record_dot_side.append(highlight_side_right)
 

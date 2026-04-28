@@ -34,6 +34,8 @@ class MainWindow(QMainWindow):
         self.load_styles()
         # 正在处理的表单数据id，默认-1，打印用
         self.now_handle_data_id = -1
+        # 与 chart_widget1.test_started/test_ended 同步：测试中禁止「数据编辑」
+        self._chart_test_active = False
 
     def init_ui(self):
         """初始化主界面布局"""
@@ -86,8 +88,9 @@ class MainWindow(QMainWindow):
 
         # 测试入库：启动时禁用；仅结束流程全部成功后启用；入库成功后再次禁用
         self.toolbar.save_btn.setEnabled(False)
-        self.chart_widget1.test_started.connect(lambda: self.toolbar.save_btn.setEnabled(False))
-        self.chart_widget1.test_ended.connect(lambda: self.toolbar.save_btn.setEnabled(True))
+        self.toolbar.edit_btn.setEnabled(True)
+        self.chart_widget1.test_started.connect(self._on_chart_test_started)
+        self.chart_widget1.test_ended.connect(self._on_chart_test_ended)
 
         main_layout.addWidget(self.toolbar, alignment=Qt.AlignTop)
         main_layout.addLayout(self.stack)
@@ -112,6 +115,16 @@ class MainWindow(QMainWindow):
         self.chart_widget1.change_retest_visible()
 
         self.showMaximized()
+
+    def _on_chart_test_started(self):
+        self._chart_test_active = True
+        self.toolbar.save_btn.setEnabled(False)
+        self.toolbar.edit_btn.setEnabled(False)
+
+    def _on_chart_test_ended(self):
+        self._chart_test_active = False
+        self.toolbar.save_btn.setEnabled(True)
+        self.toolbar.edit_btn.setEnabled(True)
 
     def handle_print_doc(self):
         # 1. 无效记录检查
@@ -197,7 +210,7 @@ class MainWindow(QMainWindow):
             chart_widget1.stack_cnt = []
             
         chart_widget1.plot_widget.clear()
-        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='b', symbol='o', symbolSize=0.5, symbolBrush='b')
+        chart_widget1.curve = chart_widget1.plot_widget.plot([], [], pen='black', symbol='o', symbolSize=0.5, symbolBrush='black')
         chart_widget1.restart = False
         chart_widget1.adjust_center = -1
         chart_widget1.adjust_number = 0.0
@@ -215,6 +228,8 @@ class MainWindow(QMainWindow):
         # 清空面板后恢复为「仅可记录初始值」
         chart_widget1._set_test_buttons_pre_record()
         self.toolbar.save_btn.setEnabled(False)
+        self._chart_test_active = False
+        self.toolbar.edit_btn.setEnabled(True)
 
     def show_config_dialog(self):
         dialog = ConfigDialog(self)
@@ -248,10 +263,23 @@ class MainWindow(QMainWindow):
         self.chart_widget1.mark_as_saved()
         self.toolbar.save_btn.setEnabled(False)
 
+        # 入库成功后清空缩放/校准参数：后续「开始」的新测试不再套用本轮缩放，除非再次点击「数据编辑」
+        cw = self.chart_widget1
+        cw.adjust_center = -1
+        cw.adjust_number = 0.0
+        cw.adjust_constancy_m_ref = None
+        cw.adjust_constancy_M_ref = None
+        cw.adjust_constancy_phi = 0.0
+        cw.adjust_constancy_gamma = 2.0
+        cw._scale_replay_x = []
+
         # 3. 入库成功提示
         QMessageBox.information(self, "提示", "入库成功！")
 
     def edit_data(self):
+        if self._chart_test_active:
+            QMessageBox.warning(self, "提示", "请先结束当前测试后再进行数据编辑。")
+            return
         w = self.chart_widget1
         x = w._record_dot_x or []
         y = w._record_dot_y or []
