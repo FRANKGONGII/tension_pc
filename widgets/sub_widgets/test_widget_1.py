@@ -796,21 +796,14 @@ class TestViewWidget_1(QWidget):
         except (TypeError, ValueError):
             return x, cal_series
         x = float(x)
-        if x >= low - 1e-15:
-            return x, cal_series
         x_up = self._lookup_x_at_nearest_y(y, self._ascending_y_x_samples)
         if x_up is None:
-            x_new = low
-        elif x_up <= low + 1e-15:
-            x_new = max(x, low)
+            x_up = low + 1
+        if x >= low + (x_up - low) / 20:
+            return x, cal_series
         else:
             # 用户要求增量介于 (low - x) 与 (x_up - low) 之间：二者平均即 (x_up - x)/2 的抬升，等价于 x 与 x_up 的中点再限制在公差内
-            delta_a = low - x
-            delta_b = x_up - low
-            delta = 0.5 * (delta_a + delta_b)
-            x_new = x + delta
-            x_new = max(x_new, low)
-            x_new = min(x_new, x_up)
+            x_new = x + (x_up - low) / 2
         patched = cal_series[:-1] + [x_new]
         return x_new, patched
 
