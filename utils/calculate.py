@@ -78,16 +78,12 @@ def apply_branch_scale_sequence(xs, ys, alpha, delta):
     return out
 
 
-def median_filter_like_widget(
-    sequence, window_n=5, prefill_first=True, seed_values=None
-):
+def median_filter_like_widget(sequence, window_n=5, prefill_first=True):
     """
     与 test_widget_1 中力值中值滤波一致（默认：首点填满窗口后输出原值，之后滑窗中位数）。
 
-    - prefill_first=False 时，不用首点重复填窗，而是让窗口从空逐点增长，
-      可避免“新分段开头”出现数个点几乎不变化的直线段。
-    - seed_values 提供时，先用这些值热启动窗口（最多取末尾 window_n-1 个），
-      再对 sequence 逐点滑窗中值滤波；适用于分段滤波时保持平滑过渡。
+    prefill_first=False 时，不用首点重复填窗，而是让窗口从空逐点增长，
+    可避免“新分段开头”出现数个点几乎不变化的直线段。
     """
     if not sequence:
         return []
@@ -96,18 +92,8 @@ def median_filter_like_widget(
     n = int(window_n)
     if n < 1:
         n = 1
-
-    seed = []
-    if seed_values:
-        try:
-            seed = [float(v) for v in seed_values][-max(0, n - 1) :]
-        except Exception:
-            seed = []
-    if seed:
-        buf = list(seed)
-
     for x in sequence:
-        if buf is None or len(buf) == 0:
+        if buf is None:
             if prefill_first:
                 buf = [x] * n
                 out.append(x)
@@ -138,12 +124,9 @@ def median_filter_hysteresis_by_y_peak(ys, values, window_n=5):
     seg1 = values[: peak_i + 1]
     seg2 = values[peak_i:]
     f1 = median_filter_like_widget(seg1, window_n)
-    # 下降臂热启动：用峰值点之前的最近 window_n-1 个值作为初始窗口，
-    # 避免“直线段”，同时比从空增长更平滑。
-    seed_prev = seg1[max(0, len(seg1) - (window_n - 1)) : -1]
-    f2 = median_filter_like_widget(
-        seg2, window_n, prefill_first=False, seed_values=seed_prev
-    )
+    # 下降臂在分段起点若用“首点重复填窗”，前几帧会近似恒定（像直线）。
+    # 这里改为窗口从空增长，保证位移刚开始下降时 x 仍能及时变化。
+    f2 = median_filter_like_widget(seg2, window_n, prefill_first=False)
     merged = f1[:-1] + [0.5 * (f1[-1] + f2[0])] + f2[1:]
     if len(merged) != n:
         return median_filter_like_widget(values, window_n)
