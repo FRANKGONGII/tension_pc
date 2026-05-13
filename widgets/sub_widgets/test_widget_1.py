@@ -839,6 +839,38 @@ class TestViewWidget_1(QWidget):
             factor = 1.0 - (num / den) * (bound_rate - br) - br
             return factor * wf
         return xf
+    
+    def _apply_scale_bound_remap_simple(self, x, W, bound_rate):
+        """
+        执行缩放后的力值映射：实时去零后的 x（与 W 同单位，通常为 kN）。
+        超出以 bound_rate 为外带、中心 为内带时按给定公式替换。
+        """
+        eps = 1e-12
+        try:
+            xf = float(x)
+            wf = float(W)
+            br = float(bound_rate)
+        except (TypeError, ValueError):
+            return x
+        if wf <= 0:
+            return x
+        x_upper_bound = wf * (1.0 + bound_rate)
+        x_down_bound = wf * (1.0 - bound_rate)
+        if xf > x_upper_bound:
+            den = xf - wf
+            if abs(den) < eps:
+                return xf
+            num = xf - x_upper_bound
+            factor = (num / den) * (bound_rate) + 1.0
+            return factor * wf
+        if xf < x_down_bound:
+            den = wf - xf
+            if abs(den) < eps:
+                return xf
+            num = x_down_bound - xf
+            factor = 1.0 - (num / den) * (bound_rate)
+            return factor * wf
+        return xf
 
     def handle_data(self, data):
         x, y, status = ast.literal_eval(data)
@@ -904,7 +936,7 @@ class TestViewWidget_1(QWidget):
         if skip_first_node:
             x_src = x_prescale
         elif self._scale_remap_enabled and self._test_has_started and W_kn > 0:
-            x_src = self._apply_scale_bound_remap(x_prescale, W_kn, self.scale_base_rate)
+            x_src = self._apply_scale_bound_remap_simple(x_prescale, W_kn, self.scale_base_rate)
         else:
             x_src = x_prescale
 
