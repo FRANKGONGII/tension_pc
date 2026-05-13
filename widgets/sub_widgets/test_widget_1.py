@@ -55,9 +55,13 @@ class TestViewWidget_1(QWidget):
     input_manager = inputManager()
     # 数据库
     DataManager = DataManager()
-    # adjust_center != -1 表示已启用恒定度校准；点击缩放时写入 m_ref/M_ref/φ/γ，对称向中心压缩 + 按 y 峰分段滤波
+    # 旧：adjust_center != -1 表示已启用恒定度校准（对称拉拢+分段滤波），现由 _scale_remap_enabled 替代
     adjust_number = 0.0
     adjust_center = -1
+    # 执行缩放（新）：目标恒定度比例（目标恒定度/100），与 _scale_remap_enabled 同时有效
+    scale_base_rate = 0.0
+    _scale_remap_enabled = False
+    _SCALE_BOUND_RATE = 0.05  # 执行缩放外带 ±5%，与需求 bound_rate=0.05 一致
     adjust_constancy_m_ref = None
     adjust_constancy_M_ref = None
     adjust_constancy_phi = 0.0
@@ -769,54 +773,6 @@ class TestViewWidget_1(QWidget):
         if hasattr(self, 'plot_widget'):
             self.plot_widget.setYRange(y_min, y_max)
 
-    @staticmethod
-    def _lookup_x_at_nearest_y(y_target, samples):
-        """在 (y, x) 列表中按位移 y 最近邻取 x。"""
-        if not samples:
-            return None
-        best_x, best_d = None, float("inf")
-        for yi, xi in samples:
-            d = abs(float(yi) - float(y_target))
-            if d < best_d:
-                best_d, best_x = d, float(xi)
-        return best_x
-
-    def _apply_descent_guard_to_full_series(self, cal_series, ys):
-        """
-        对缩放后的整条序列逐点施加下降段下限修正。
-
-        说明：median 滤波每帧会从 prescale 前缀整段重算 cal_series；若只改最后一个点，
-        下一帧重算会把历史点恢复成「未 guard」的值，界面会闪一下又变回去。因此在每一帧都对
-        与 ys 对齐的整条曲线重算修正。
-        """
-        if not cal_series or not ys or len(cal_series) != len(ys):
-            return cal_series
-        try:
-            base_kn = float(self.input_manager.get_value("工作载荷")) / 1000.0
-            low = base_kn * 0.94
-        except (TypeError, ValueError):
-            return cal_series
-        out = [float(v) for v in cal_series]
-        for i in range(1, len(out)):
-            if float(ys[i]) >= float(ys[i - 1]):
-                continue
-            xv = out[i]
-            if xv >= low - 1e-15:
-                continue
-            x_up = self._lookup_x_at_nearest_y(ys[i], self._ascending_y_x_samples)
-            if x_up is None:
-                out[i] = low
-            elif x_up <= low + 1e-15:
-                out[i] = max(xv, low)
-            else:
-                delta_a = low - xv
-                delta_b = x_up - low
-                x_new = xv + 0.5 * (delta_a + delta_b)
-                x_new = max(x_new, low)
-                x_new = min(x_new, x_up)
-                out[i] = x_new
-        return out
-
     def on_mouse_moved(self, evt):
         pos = evt
         mouse_point = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
@@ -840,6 +796,41 @@ class TestViewWidget_1(QWidget):
     #         grid_layout.addWidget(label, 0, col)
 
     #     return grid_layout
+
+    def _apply_scale_bound_remap(self, x, W, base_rate):
+        """
+        执行缩放后的力值映射：实时去零后的 x（与 W 同单位，通常为 kN）。
+        超出以 bound_rate 为外带、base_rate 为内带时按给定公式替换。
+        """
+        eps = 1e-12
+        bound_rate = self._SCALE_BOUND_RATE
+        try:
+            xf = float(x)
+            wf = float(W)
+            br = float(base_rate)
+        except (TypeError, ValueError):
+            return x
+        if wf <= 0:
+            return x
+        x_upper_bound = wf * (1.0 + bound_rate)
+        x_down_bound = wf * (1.0 - bound_rate)
+        inner_hi = wf * (1.0 + br)
+        inner_lo = wf * (1.0 - br)
+        if xf > x_upper_bound:
+            den = xf - inner_hi
+            if abs(den) < eps:
+                return inner_hi
+            num = xf - x_upper_bound
+            factor = (num / den) * (bound_rate - br) + 1.0 + br
+            return factor * wf
+        if xf < x_down_bound:
+            den = inner_lo - xf
+            if abs(den) < eps:
+                return inner_lo
+            num = x_down_bound - xf
+            factor = 1.0 - (num / den) * (bound_rate - br) - br
+            return factor * wf
+        return xf
 
     def handle_data(self, data):
         x, y, status = ast.literal_eval(data)
@@ -874,7 +865,7 @@ class TestViewWidget_1(QWidget):
                 y = 0
 
         x_prescale = float(x)
-        cal_series = None
+        # cal_series = None  # 旧恒定度校准整条前缀重算时用；新逻辑不再使用
 
         def _emit_display(xv):
             if self._record_dot_y is not None and len(self._record_dot_y) > 0:
@@ -897,42 +888,26 @@ class TestViewWidget_1(QWidget):
         if skip_first_node:
             self._if_accpet_node = False
 
-        # 启用校准且进入正式打点：用点击缩放时固定的 m_ref/M_ref/φ 对前缀做拉拢+中值滤波（不再随当前曲线重算 φ）
-        if (
-            (not skip_first_node)
-            and self.adjust_center != -1
-            and self.adjust_constancy_m_ref is not None
-        ):
-            self._scale_replay_x.append(x_prescale)
-            y_prefix = self._record_dot_y + [y]
-            pulled = apply_symmetric_extreme_pull(
-                self._scale_replay_x,
-                self.adjust_constancy_phi,
-                self.adjust_constancy_m_ref,
-                self.adjust_constancy_M_ref,
-                self.adjust_constancy_gamma,
-            )
-            cal_series = median_filter_hysteresis_by_y_peak(
-                y_prefix, pulled, self._FILTER_WINDOW_N
-            )
-            x = cal_series[-1]
-        else:
-            if len(self._filter_x_window) == 0:
-                self._filter_x_window = [x_prescale] * self._FILTER_WINDOW_N
-                x = x_prescale
-            else:
-                self._filter_x_window.append(x_prescale)
-                if len(self._filter_x_window) > self._FILTER_WINDOW_N:
-                    self._filter_x_window.pop(0)
-                x = statistics.median(self._filter_x_window)
+        try:
+            W_kn = float(self.input_manager.get_value("工作载荷")) / 1000.0
+        except (TypeError, ValueError):
+            W_kn = 0.0
 
-        # 缩放路径：记录位移增大阶段的 (y, x)（未做下限修正的缩放值），再对整条序列做下降段下限修正，避免下一帧重算 median 后闪回
-        if cal_series is not None:
-            y_prefix = self._record_dot_y + [y]
-            if self._previous_y is None or float(y) > float(self._previous_y):
-                self._ascending_y_x_samples.append((float(y), float(cal_series[-1])))
-            cal_series = self._apply_descent_guard_to_full_series(cal_series, y_prefix)
-            x = cal_series[-1]
+        if skip_first_node:
+            x_src = x_prescale
+        elif self._scale_remap_enabled and W_kn > 0:
+            x_src = self._apply_scale_bound_remap(x_prescale, W_kn, self.scale_base_rate)
+        else:
+            x_src = x_prescale
+
+        if len(self._filter_x_window) == 0:
+            self._filter_x_window = [x_src] * self._FILTER_WINDOW_N
+            x = x_src
+        else:
+            self._filter_x_window.append(x_src)
+            if len(self._filter_x_window) > self._FILTER_WINDOW_N:
+                self._filter_x_window.pop(0)
+            x = statistics.median(self._filter_x_window)
 
         _emit_display(x)
 
@@ -990,21 +965,14 @@ class TestViewWidget_1(QWidget):
             if should_highlight:
                 if target_displacement is not None and highlight_side_right:
                     self.stack_cnt.append(target_displacement)
-                if self.adjust_center == -1:
-                    self.highlight_plot(x, y, highlight_side_right)
+                self.highlight_plot(x, y, highlight_side_right)
                 # 使用matplotlib保存高质量图片
                 # self.save_high_res_chart()
 
         self._record_dot_y.append(y)
-        if self.adjust_center != -1:
-            self._record_dot_x = cal_series
-        else:
-            self._record_dot_x.append(x)
+        self._record_dot_x.append(x)
 
         self._record_dot_highlight.append(should_highlight)
         self._record_dot_side.append(highlight_side_right)
 
-        if self.adjust_center != -1:
-            self._rebuild_pyqt_chart_with_highlights()
-        else:
-            self.update_chart(self._record_dot_x, self._record_dot_y)
+        self.update_chart(self._record_dot_x, self._record_dot_y)

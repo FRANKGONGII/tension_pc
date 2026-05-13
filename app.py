@@ -24,7 +24,7 @@ from utils.system_logger import get_logger
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from utils.print_doc import print_doc, PrintCancelled
-from utils.calculate import calculate_constancy, robust_min_max_means, solve_constancy_pull_params
+from utils.calculate import calculate_constancy, robust_min_max_means  # solve_constancy_pull_params 旧「执行缩放」解参已停用
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -218,6 +218,8 @@ class MainWindow(QMainWindow):
         chart_widget1.adjust_constancy_M_ref = None
         chart_widget1.adjust_constancy_phi = 0.0
         chart_widget1.adjust_constancy_gamma = 2.0
+        chart_widget1._scale_remap_enabled = False
+        chart_widget1.scale_base_rate = 0.0
         chart_widget1._scale_replay_x = []
 
         chart_widget1.time_input.setText("")
@@ -271,6 +273,8 @@ class MainWindow(QMainWindow):
         cw.adjust_constancy_M_ref = None
         cw.adjust_constancy_phi = 0.0
         cw.adjust_constancy_gamma = 2.0
+        cw._scale_remap_enabled = False
+        cw.scale_base_rate = 0.0
         cw._scale_replay_x = []
 
         # 3. 入库成功提示
@@ -300,15 +304,6 @@ class MainWindow(QMainWindow):
             self.try_scaling(points, ys, dialog.get_target_constancy_fraction())
 
     def try_scaling(self, points, ys, target_fraction):
-        m, M = robust_min_max_means(points)
-        if m is None or M is None or M + m <= 0:
-            QMessageBox.warning(self, "提示", "无法计算缩放：力值数据无效。")
-            return
-        target_percent = float(target_fraction) * 100.0
-        params = solve_constancy_pull_params(points, ys, target_percent, window_n=5)
-        if params is None:
-            QMessageBox.warning(self, "提示", "无法计算缩放：力值数据无效。")
-            return
         try:
             wg_raw = self.chart_widget1.input_manager.get_value("工作载荷")
             Wg = float(wg_raw) / 1000.0
@@ -319,9 +314,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "工作载荷须为大于 0 的数值。")
             return
         cw = self.chart_widget1
-        cw.adjust_constancy_m_ref = params["m_ref"]
-        cw.adjust_constancy_M_ref = params["M_ref"]
-        cw.adjust_constancy_phi = params["phi"]
-        cw.adjust_constancy_gamma = params["gamma"]
-        cw.adjust_number = params["phi"]
-        cw.adjust_center = Wg
+        cw.scale_base_rate = float(target_fraction)
+        cw._scale_remap_enabled = True
+        cw.adjust_number = cw.scale_base_rate
