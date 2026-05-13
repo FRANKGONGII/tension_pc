@@ -179,7 +179,7 @@ class TestViewWidget_1(QWidget):
         form_layout.addLayout(button_layout)
         form_layout.addSpacing(16)
 
-        # 初始化串口监听（端口从配置读取，下次启动测试时生效）
+        # 初始化串口监听（端口从配置读取；配置对话框改端口后会 reopen_serial）
         self.listening = True  # 状态变量：是否正在监听串口
         self.serial_reader = SerialReader(port=get_serial_port(), baudrate=9600)
         self.serial_reader.data_received.connect(self.handle_data)

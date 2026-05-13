@@ -20,6 +20,7 @@ from widgets.sub_widgets.search_history_widget import SearchHistoryWidget
 from widgets.toolbar import ToolBarWidget
 from utils.data_manager import DataManager
 from utils.system_logger import get_logger
+from utils.config_manager import get_serial_port
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -233,8 +234,10 @@ class MainWindow(QMainWindow):
         self.toolbar.edit_btn.setEnabled(True)
 
     def show_config_dialog(self):
+        old_port = get_serial_port()
         dialog = ConfigDialog(self)
-        dialog.exec_()
+        if dialog.exec_() == QDialog.Accepted and get_serial_port() != old_port:
+            self.chart_widget1.serial_reader.reopen_serial()
 
     def save_data(self):
         # 1. 重复入库检查

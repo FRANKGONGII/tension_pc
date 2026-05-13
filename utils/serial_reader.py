@@ -7,6 +7,7 @@ import serial.tools.list_ports
 import threading
 from utils.system_logger import get_logger
 from utils.paths import data_path
+from utils.config_manager import get_serial_port, DEFAULT_SERIAL_PORT
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QPushButton
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -22,6 +23,7 @@ class SerialReader(QObject):
         self._sending_data = False  # 控制是否发送数据的变量
         self.thread = None
         self._test_thread_started = False
+        self._reopen_lock = threading.Lock()
         # 程序启动就开始读取数据
         # TODO：正式时启动下面的解除
         try:
@@ -32,6 +34,37 @@ class SerialReader(QObject):
         except serial.SerialException as e:
             print(e)
             self.data_received.emit(f"[串口错误] {e}")
+
+    def reopen_serial(self, port=None):
+        """关闭当前读线程与串口，并按配置（或指定 port）重新打开；用于修改端口后立即生效。"""
+        new_port = str(port).strip() if port else str(get_serial_port()).strip()
+        if not new_port:
+            new_port = DEFAULT_SERIAL_PORT
+        with self._reopen_lock:
+            self._running = False
+            if self.thread and self.thread.is_alive():
+                self.thread.join(timeout=3.0)
+            if self.thread and self.thread.is_alive():
+                get_logger().warning("串口读线程未在超时内结束")
+            if self.ser:
+                try:
+                    if self.ser.is_open:
+                        self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
+            self.thread = None
+            self.port = new_port
+            self._running = True
+            try:
+                self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+                self.thread = threading.Thread(target=self.read_data)
+                self.thread.daemon = True
+                self.thread.start()
+            except serial.SerialException as e:
+                get_logger().warning("重新打开串口失败: %s", e)
+                self.ser = None
+                self.data_received.emit(f"[串口错误] {e}")
 
     def start(self):
         # 只修改控制发送数据的变量，不重新启动线程
