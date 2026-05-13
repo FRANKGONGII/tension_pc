@@ -218,8 +218,7 @@ class MainWindow(QMainWindow):
         chart_widget1.adjust_constancy_M_ref = None
         chart_widget1.adjust_constancy_phi = 0.0
         chart_widget1.adjust_constancy_gamma = 2.0
-        chart_widget1._scale_remap_enabled = False
-        chart_widget1.scale_base_rate = 0.0
+        chart_widget1._clear_scale_remap_one_shot()
         chart_widget1._scale_replay_x = []
 
         chart_widget1.time_input.setText("")
@@ -268,13 +267,11 @@ class MainWindow(QMainWindow):
         # 入库成功后清空缩放/校准参数：后续「开始」的新测试不再套用本轮缩放，除非再次点击「数据编辑」
         cw = self.chart_widget1
         cw.adjust_center = -1
-        cw.adjust_number = 0.0
         cw.adjust_constancy_m_ref = None
         cw.adjust_constancy_M_ref = None
         cw.adjust_constancy_phi = 0.0
         cw.adjust_constancy_gamma = 2.0
-        cw._scale_remap_enabled = False
-        cw.scale_base_rate = 0.0
+        cw._clear_scale_remap_one_shot()
         cw._scale_replay_x = []
 
         # 3. 入库成功提示

@@ -58,7 +58,8 @@ class TestViewWidget_1(QWidget):
     # 旧：adjust_center != -1 表示已启用恒定度校准（对称拉拢+分段滤波），现由 _scale_remap_enabled 替代
     adjust_number = 0.0
     adjust_center = -1
-    # 执行缩放（新）：目标恒定度比例（目标恒定度/100），与 _scale_remap_enabled 同时有效
+    # 执行缩放（新）：目标恒定度比例；_scale_remap_enabled 仅在「最近一次执行缩放」后、且仅持续紧接着的那一轮测试，
+    # 该轮点击「结束」后自动清除（入库/清空面板也会清除）。
     scale_base_rate = 0.0
     _scale_remap_enabled = False
     _SCALE_BOUND_RATE = 0.05  # 执行缩放外带 ±5%，与需求 bound_rate=0.05 一致
@@ -476,6 +477,12 @@ class TestViewWidget_1(QWidget):
         self._start_test_core()
         return True
 
+    def _clear_scale_remap_one_shot(self):
+        """执行缩放仅生效于紧接着的一轮测试；调用方：该轮测试正常结束、或在入库/清空面板时。"""
+        self._scale_remap_enabled = False
+        self.scale_base_rate = 0.0
+        self.adjust_number = 0.0
+
     def on_start_clicked(self):
         # 「开始」按钮已隐藏，但保留入口以兼容旧逻辑/调试
         if self.btn1.isEnabled():
@@ -533,7 +540,8 @@ class TestViewWidget_1(QWidget):
             
             self.save_high_res_chart()
 
-            # 结束成功：禁用结束，恢复为可再次记录初始值；再通知主窗口可测试入库
+            # 结束成功：缩放仅对本轮测试有效，结束后关闭「执行缩放」状态
+            self._clear_scale_remap_one_shot()
             self._test_has_started = False
             self._set_test_buttons_pre_record()
             self.test_ended.emit()
@@ -871,7 +879,7 @@ class TestViewWidget_1(QWidget):
             if self._record_dot_y is not None and len(self._record_dot_y) > 0:
                 self.received_data_changed.emit([xv, y - self._record_dot_y[0], y])
             else:
-                self.received_data_changed.emit([xv, 0, 0])
+                self.received_data_changed.emit([xv, 0, y])
 
         if not self.serial_reader._sending_data:
             if len(self._filter_x_window) == 0:
@@ -895,7 +903,7 @@ class TestViewWidget_1(QWidget):
 
         if skip_first_node:
             x_src = x_prescale
-        elif self._scale_remap_enabled and W_kn > 0:
+        elif self._scale_remap_enabled and self._test_has_started and W_kn > 0:
             x_src = self._apply_scale_bound_remap(x_prescale, W_kn, self.scale_base_rate)
         else:
             x_src = x_prescale
