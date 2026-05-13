@@ -22,6 +22,7 @@ from PO.input_data import inputManager
 from pyqtgraph import InfiniteLine
 from utils.calculate import *
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import numpy as np
@@ -95,7 +96,6 @@ class TestViewWidget_1(QWidget):
     _existing_file_path = None
     _test_result = True
     _scale_switched = False
-    _if_accpet_node = True
     _filter_x_window = []
     _FILTER_WINDOW_N = 5
     # 恒定度缩放：记录「去0后、固定 φ 变换前」的力值
@@ -441,8 +441,8 @@ class TestViewWidget_1(QWidget):
 
         # 插入边界线
         base = float(self.input_manager.get_value("工作载荷")) / 1000
-        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen="r")
-        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen="g")
+        line1 = InfiniteLine(pos=base * 1.06, angle=90, pen=pg.mkPen("r", width=1))
+        line2 = InfiniteLine(pos=base * 0.94, angle=90, pen=pg.mkPen("g", width=1))
         for key in [
             "恒定度",
             "位移终止点值",
@@ -680,8 +680,8 @@ class TestViewWidget_1(QWidget):
         self.plot_widget.setYRange(self.current_y_min, self.current_y_max)
         try:
             base = float(self.input_manager.get_value("工作载荷")) / 1000
-            self.plot_widget.addItem(InfiniteLine(pos=base * 1.06, angle=90, pen='r'))
-            self.plot_widget.addItem(InfiniteLine(pos=base * 0.94, angle=90, pen='g'))
+            self.plot_widget.addItem(InfiniteLine(pos=base * 1.06, angle=90, pen=pg.mkPen("r", width=1)))
+            self.plot_widget.addItem(InfiniteLine(pos=base * 0.94, angle=90, pen=pg.mkPen("g", width=1)))
         except (ValueError, TypeError):
             pass
         self.update_chart(self._record_dot_x, self._record_dot_y)
@@ -699,8 +699,7 @@ class TestViewWidget_1(QWidget):
         self._record_dot_side = list(side_right)
         self._cnt_receive_dot = 0
         self._rebuild_pyqt_chart_with_highlights()
-        # 使用matplotlib保存高质量图片
-        # self.save_high_res_chart()
+        self.save_high_res_chart()
 
     def save_high_res_chart(self):
         """使用matplotlib重新绘制图表并保存为高质量PNG"""
@@ -738,8 +737,8 @@ class TestViewWidget_1(QWidget):
         
         # 绘制工作载荷的上下5%线
         base = float(self.input_manager.get_value("工作载荷"))/1000
-        ax.axvline(x=base * 1.06, color='red', linestyle='--', linewidth=1.5)
-        ax.axvline(x=base * 0.94, color='green', linestyle='--', linewidth=1.5)
+        ax.axvline(x=base * 1.06, color='red', linestyle='-', linewidth=1)
+        ax.axvline(x=base * 0.94, color='green', linestyle='-', linewidth=1)
         
         # 设置坐标轴标签和标题（增大字号确保打印可读）
         ax.set_title("载荷-位移特性曲线图\nLoad-Travel Performance Curve", color='purple', fontsize=16)
@@ -757,9 +756,16 @@ class TestViewWidget_1(QWidget):
         
         # 设置y轴为0在上（反转y轴）
         ax.invert_yaxis()
-        
-        # 添加网格线
-        ax.grid(True, linestyle='--', alpha=0.7)
+
+        x_min, x_max = self.current_x_min, self.current_x_max
+        y_min, y_max = self.current_y_min, self.current_y_max
+        x_span = x_max - x_min
+        y_span = y_max - y_min
+        x_ticks = np.linspace(x_min, x_max, 11) if abs(x_span) > 1e-12 else np.array([x_min])
+        y_ticks = np.linspace(y_min, y_max, 11) if abs(y_span) > 1e-12 else np.array([y_min])
+        ax.xaxis.set_major_locator(FixedLocator(x_ticks))
+        ax.yaxis.set_major_locator(FixedLocator(y_ticks))
+        ax.grid(True, axis="both", which="major", linestyle="--", alpha=0.5)
         
         # 调整布局
         plt.tight_layout()
@@ -805,7 +811,7 @@ class TestViewWidget_1(QWidget):
 
     #     return grid_layout
 
-    def _apply_scale_bound_remap(self, x, W, base_rate):
+    def _apply_scale_bound_remap(self, x, W, base_rate, is_increase):
         """
         执行缩放后的力值映射：实时去零后的 x（与 W 同单位，通常为 kN）。
         超出以 bound_rate 为外带、base_rate 为内带时按给定公式替换。
@@ -829,14 +835,20 @@ class TestViewWidget_1(QWidget):
             if abs(den) < eps:
                 return inner_hi
             num = xf - x_upper_bound
-            factor = (num / den) * (bound_rate - br) + 1.0 + br
+            if is_increase:
+                factor = (num / den) * (bound_rate - br) + 1.0 + br
+            else:
+                factor = (num / den) * (bound_rate - br) + 1.0 + br/2
             return factor * wf
         if xf < x_down_bound:
             den = inner_lo - xf
             if abs(den) < eps:
                 return inner_lo
             num = x_down_bound - xf
-            factor = 1.0 - (num / den) * (bound_rate - br) - br
+            if is_increase:
+                factor = 1.0 - (num / den) * (bound_rate - br) - br/2
+            else:
+                factor = 1.0 - (num / den) * (bound_rate - br) - br
             return factor * wf
         return xf
     
@@ -914,48 +926,37 @@ class TestViewWidget_1(QWidget):
                 self.received_data_changed.emit([xv, 0, y])
 
         if not self.serial_reader._sending_data:
-            if len(self._filter_x_window) == 0:
-                xv = x_prescale
-            else:
-                self._filter_x_window.append(x_prescale)
-                if len(self._filter_x_window) > self._FILTER_WINDOW_N:
-                    self._filter_x_window.pop(0)
-                xv = statistics.median(self._filter_x_window)
-            _emit_display(xv)
+            # if len(self._filter_x_window) == 0:
+            #     xv = x_prescale
+            # else:
+            #     self._filter_x_window.append(x_prescale)
+            #     if len(self._filter_x_window) > self._FILTER_WINDOW_N:
+            #         self._filter_x_window.pop(0)
+            #     xv = statistics.median(self._filter_x_window)
+            _emit_display(x)
             return
-
-        skip_first_node = self._if_accpet_node
-        if skip_first_node:
-            self._if_accpet_node = False
 
         try:
             W_kn = float(self.input_manager.get_value("工作载荷")) / 1000.0
         except (TypeError, ValueError):
             W_kn = 0.0
 
-        if skip_first_node:
-            x_src = x_prescale
-        elif self._scale_remap_enabled and self._test_has_started and W_kn > 0:
-            x_src = self._apply_scale_bound_remap_simple(x_prescale, W_kn, self.scale_base_rate)
-        else:
-            x_src = x_prescale
-
-        if len(self._filter_x_window) == 0:
-            self._filter_x_window = [x_src] * self._FILTER_WINDOW_N
-            x = x_src
-        else:
-            self._filter_x_window.append(x_src)
-            if len(self._filter_x_window) > self._FILTER_WINDOW_N:
-                self._filter_x_window.pop(0)
-            x = statistics.median(self._filter_x_window)
-
-        _emit_display(x)
-
-        if skip_first_node:
-            return
-
         min_value = float(self.input_manager.get_value("工作载荷"))/1000 * 0.94
         max_value = float(self.input_manager.get_value("工作载荷"))/1000 * 1.06
+
+        # 判断位移变化趋势（用于确定是压还是拉的过程）
+        if self._previous_y is not None:
+            if y > self._previous_y:
+                self._is_increasing_phase = True  # 位移增加，压的过程
+            elif y < self._previous_y:
+                self._is_increasing_phase = False  # 位移减少，拉的过程
+
+        if self._scale_remap_enabled and self._test_has_started and W_kn > 0:
+            x = self._apply_scale_bound_remap(x_prescale, W_kn, self.scale_base_rate, self._is_increasing_phase)
+        else:
+            x = x_prescale
+
+        _emit_display(x)
         if (x < min_value or x > max_value) and self._y_start_value is not None:
             self._test_result = False
         
@@ -970,13 +971,7 @@ class TestViewWidget_1(QWidget):
         # 更新最大y值
         if self._y_max_value is None or y > self._y_max_value:
             self._y_max_value = y
-        
-        # 判断位移变化趋势（用于确定是压还是拉的过程）
-        if self._previous_y is not None:
-            if y > self._previous_y:
-                self._is_increasing_phase = True  # 位移增加，压的过程
-            elif y < self._previous_y:
-                self._is_increasing_phase = False  # 位移减少，拉的过程
+
         self._previous_y = y
         base = int(self.input_manager.get_value("总位移")) + 30
         # 基于工作位移的高亮点逻辑

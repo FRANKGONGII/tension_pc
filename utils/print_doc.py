@@ -93,7 +93,7 @@ def print_doc(now_handle_data_id=-1, existing_file_path=None):
         doc.Close(False)
         word.Quit()
     # 查询数据库获取数据
-    if existing_file_path is not None:
+    if existing_file_path is not None and os.path.exists(existing_file_path):
         print_word_file(existing_file_path, get_printer_name())
         return
     
